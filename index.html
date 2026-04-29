@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent-Pilot | IM 协同办公助手</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">AP</div>
+          <div>
+            <h1>Agent-Pilot</h1>
+            <p>从 IM 对话到文档、画布、演示稿与交付归档</p>
+          </div>
+        </div>
+        <div class="global-actions">
+          <span id="serverStatus" class="server-status">同步中</span>
+          <button type="button" class="ghost-btn" data-global-action="seed">载入评审任务</button>
+          <button type="button" class="ghost-btn" data-global-action="reset">重置</button>
+        </div>
+      </header>
+
+      <main class="device-stage" aria-label="Agent-Pilot multi-device workspace">
+        <section class="device desktop-device" data-device="desktop">
+          <div class="device-bar">
+            <div>
+              <span class="device-label">macOS Desktop</span>
+              <strong>桌面端</strong>
+            </div>
+            <div class="device-tools">
+              <span class="sync-pill" data-role="sync"></span>
+              <button type="button" class="icon-btn" title="切换在线状态" data-action="toggle-online">⏻</button>
+            </div>
+          </div>
+          <div class="desktop-layout">
+            <section class="panel im-panel">
+              <div class="panel-head">
+                <div>
+                  <span class="eyebrow">Scene A</span>
+                  <h2>IM 指令入口</h2>
+                </div>
+                <div class="segmented" role="tablist" aria-label="thread mode">
+                  <button type="button" class="active" data-action="thread" data-thread="群聊">群聊</button>
+                  <button type="button" data-action="thread" data-thread="单聊">单聊</button>
+                </div>
+              </div>
+              <div class="chat-list" data-role="chat"></div>
+              <form class="composer" data-role="composer">
+                <textarea data-role="commandInput" rows="2" placeholder="输入自然语言指令"></textarea>
+                <div class="composer-actions">
+                  <button type="button" class="icon-btn" title="语音输入" data-action="voice">◉</button>
+                  <button type="submit" class="primary-btn" title="发送指令">发送</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="panel planner-panel">
+              <div class="panel-head">
+                <div>
+                  <span class="eyebrow">Scene B / E</span>
+                  <h2>Agent 规划与同步</h2>
+                </div>
+                <span class="progress-text" data-role="progressText"></span>
+              </div>
+              <div class="task-meter">
+                <div class="task-meter-fill" data-role="progressFill"></div>
+              </div>
+              <div class="scene-list" data-role="scenes"></div>
+              <div class="queue-strip" data-role="queue"></div>
+            </section>
+
+            <section class="panel workspace-panel">
+              <div class="panel-head workspace-head">
+                <div>
+                  <span class="eyebrow">Office Suite</span>
+                  <h2>文档 / 画布 / 演示 / 交付</h2>
+                </div>
+                <div class="tabs" data-role="tabs"></div>
+              </div>
+              <div class="workspace-body" data-role="workspace"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="device mobile-device" data-device="mobile">
+          <div class="phone-shell">
+            <div class="phone-speaker"></div>
+            <div class="device-bar compact">
+              <div>
+                <span class="device-label">iOS / Android</span>
+                <strong>移动端</strong>
+              </div>
+              <div class="device-tools">
+                <span class="sync-pill" data-role="sync"></span>
+                <button type="button" class="icon-btn" title="切换在线状态" data-action="toggle-online">⏻</button>
+              </div>
+            </div>
+            <div class="mobile-scroll">
+              <section class="panel im-panel">
+                <div class="panel-head">
+                  <div>
+                    <span class="eyebrow">Scene A</span>
+                    <h2>IM</h2>
+                  </div>
+                  <div class="segmented" role="tablist" aria-label="thread mode">
+                    <button type="button" class="active" data-action="thread" data-thread="群聊">群聊</button>
+                    <button type="button" data-action="thread" data-thread="单聊">单聊</button>
+                  </div>
+                </div>
+                <div class="chat-list" data-role="chat"></div>
+                <form class="composer" data-role="composer">
+                  <textarea data-role="commandInput" rows="2" placeholder="输入或语音下达指令"></textarea>
+                  <div class="composer-actions">
+                    <button type="button" class="icon-btn" title="语音输入" data-action="voice">◉</button>
+                    <button type="submit" class="primary-btn" title="发送指令">发送</button>
+                  </div>
+                </form>
+              </section>
+
+              <section class="panel planner-panel">
+                <div class="panel-head">
+                  <div>
+                    <span class="eyebrow">Scenes</span>
+                    <h2>任务编排</h2>
+                  </div>
+                  <span class="progress-text" data-role="progressText"></span>
+                </div>
+                <div class="task-meter">
+                  <div class="task-meter-fill" data-role="progressFill"></div>
+                </div>
+                <div class="scene-list" data-role="scenes"></div>
+                <div class="queue-strip" data-role="queue"></div>
+              </section>
+
+              <section class="panel workspace-panel">
+                <div class="panel-head workspace-head">
+                  <div>
+                    <span class="eyebrow">Suite</span>
+                    <h2>成果</h2>
+                  </div>
+                  <div class="tabs" data-role="tabs"></div>
+                </div>
+                <div class="workspace-body" data-role="workspace"></div>
+              </section>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./src/app.js"></script>
+  </body>
+</html>
