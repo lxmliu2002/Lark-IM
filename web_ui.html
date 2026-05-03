@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IM 办公协同智能助手</title>
+  <style>
+    :root {
+      --bg: #f3f7ff;
+      --ink: #16233b;
+      --muted: #60708a;
+      --panel: rgba(255, 255, 255, 0.92);
+      --line: rgba(148, 163, 184, 0.22);
+      --blue: #1d4ed8;
+      --blue-deep: #102a83;
+      --cyan: #0891b2;
+      --shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 28%),
+        radial-gradient(circle at 88% 12%, rgba(8, 145, 178, 0.14), transparent 24%),
+        linear-gradient(160deg, #f8fbff 0%, #edf4ff 48%, #f8fafc 100%);
+    }
+
+    .shell {
+      width: min(1220px, calc(100vw - 32px));
+      margin: 22px auto 40px;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 30px 32px;
+      border-radius: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      background:
+        linear-gradient(135deg, rgba(15, 42, 131, 0.96), rgba(37, 99, 235, 0.9) 55%, rgba(8, 145, 178, 0.82));
+      color: #fff;
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -42px -48px auto;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      filter: blur(8px);
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(30px, 4vw, 44px);
+      line-height: 1.08;
+    }
+
+    .hero p {
+      max-width: 760px;
+      margin: 12px 0 0;
+      color: rgba(255, 255, 255, 0.86);
+      line-height: 1.75;
+      font-size: 16px;
+    }
+
+    .hero-badges {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    .badge {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      font-size: 13px;
+      backdrop-filter: blur(8px);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.02fr 0.98fr;
+      gap: 20px;
+      margin-top: 22px;
+    }
+
+    .panel {
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .panel-header h2,
+    .section-header h2 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .panel-header span,
+    .section-header span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 280px;
+      resize: vertical;
+      border-radius: 20px;
+      border: 1px solid rgba(59, 130, 246, 0.14);
+      padding: 18px 18px 20px;
+      background: rgba(248, 250, 252, 0.88);
+      color: var(--ink);
+      font: inherit;
+      font-size: 15px;
+      line-height: 1.75;
+      outline: none;
+      transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+    }
+
+    textarea:focus {
+      border-color: rgba(29, 78, 216, 0.4);
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+      transform: translateY(-1px);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 16px;
+      align-items: center;
+    }
+
+    button,
+    .link-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform .18s ease, opacity .18s ease;
+    }
+
+    button:hover,
+    .link-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .primary-btn {
+      color: #fff;
+      background: linear-gradient(135deg, var(--blue-deep), var(--blue));
+      box-shadow: 0 14px 30px rgba(29, 78, 216, 0.24);
+    }
+
+    .secondary-btn,
+    .link-btn {
+      color: var(--blue-deep);
+      background: rgba(219, 234, 254, 0.9);
+      border: 1px solid rgba(59, 130, 246, 0.16);
+    }
+
+    .status {
+      min-height: 22px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .tips-card {
+      padding: 16px 18px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(243, 246, 255, 0.94));
+      border: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    .tips-card + .tips-card {
+      margin-top: 14px;
+    }
+
+    .tips-card strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--blue-deep);
+      font-size: 14px;
+    }
+
+    .tips-card p,
+    .tips-card li {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 14px;
+    }
+
+    .tips-card ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .section {
+      margin-top: 22px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .stat {
+      padding: 8px 12px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.84);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .empty-state {
+      padding: 40px 20px;
+      border-radius: 24px;
+      text-align: center;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px dashed rgba(148, 163, 184, 0.35);
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 16px;
+    }
+
+    .card {
+      padding: 20px;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .card h3 {
+      margin: 0 0 12px;
+      font-size: 19px;
+    }
+
+    .span-12 { grid-column: span 12; }
+    .span-7 { grid-column: span 7; }
+    .span-5 { grid-column: span 5; }
+
+    .topic {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .item {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(239, 246, 255, 0.8), rgba(255, 255, 255, 0.96));
+      border: 1px solid rgba(191, 219, 254, 0.7);
+    }
+
+    .item strong {
+      display: block;
+      margin-bottom: 6px;
+      line-height: 1.6;
+    }
+
+    .item p,
+    .item ul {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 14px;
+    }
+
+    .item ul {
+      padding-left: 18px;
+      margin-top: 8px;
+    }
+
+    .preview-shell {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .preview-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.88);
+    }
+
+    .preview-topbar p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    iframe {
+      width: 100%;
+      height: 820px;
+      border: 0;
+      background: #fff;
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      border-radius: 20px;
+      overflow: auto;
+      background: #0f172a;
+      color: #dbeafe;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 960px) {
+      .grid { grid-template-columns: 1fr; }
+      .span-7, .span-5 { grid-column: span 12; }
+      iframe { height: 680px; }
+    }
+
+    @media (max-width: 640px) {
+      .shell {
+        width: min(100vw - 20px, 1220px);
+        margin: 12px auto 24px;
+      }
+
+      .hero,
+      .panel,
+      .card,
+      .empty-state {
+        border-radius: 20px;
+      }
+
+      .hero { padding: 22px; }
+      textarea { min-height: 220px; }
+      .panel-header { flex-direction: column; align-items: flex-start; }
+      .preview-topbar { flex-direction: column; align-items: flex-start; }
+      iframe { height: 560px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <h1>IM 办公协同智能助手</h1>
+      <p>当前版本走的是“结构化 JSON -> HTML 幻灯片 -> 浏览器渲染图片 -> 回写为 PPT”的链路。也就是说，视觉质量由 HTML/CSS 决定，最终交付物仍然是可下载的 `.pptx`。</p>
+      <div class="hero-badges">
+        <div class="badge">结构化分析</div>
+        <div class="badge">HTML 幻灯片渲染</div>
+        <div class="badge">自动封装为 PPT</div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>输入 IM 内容</h2>
+          <span>建议保留角色、节点和行动项信息</span>
+        </div>
+        <textarea id="chatInput">张三：我们下周一前完成需求整理。李四：我负责PPT初稿，周日晚上发你。王五：我补充数据分析部分。赵六：我明天整理业务优先级，方便你们汇总。</textarea>
+        <div class="actions">
+          <button id="analyzeBtn" class="primary-btn">生成 HTML 幻灯片并导出 PPT</button>
+          <button id="fillDemoBtn" class="secondary-btn" type="button">填充示例内容</button>
+          <button id="copyJsonBtn" class="secondary-btn hidden" type="button">复制 JSON</button>
+          <a id="previewBtn" class="link-btn hidden" href="#" target="_blank" rel="noopener">新窗口打开幻灯片</a>
+          <a id="downloadBtn" class="link-btn hidden" href="#" download>下载 PPT</a>
+        </div>
+        <div id="status" class="status">服务已就绪，可以开始生成。</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>演示提示</h2>
+          <span>同一份结构化结果驱动预览和最终导出</span>
+        </div>
+        <div class="tips-card">
+          <strong>这条链路的意义</strong>
+          <p>我们不再直接在 PPT 里排版，而是先做高自由度的 HTML 幻灯片，再把每页浏览器渲染结果自动回写到 PPT 里。</p>
+        </div>
+        <div class="tips-card">
+          <strong>当前页面会展示</strong>
+          <ul>
+            <li>结构化结果卡片</li>
+            <li>原始 JSON</li>
+            <li>HTML 幻灯片嵌入预览</li>
+            <li>最终 PPT 下载按钮</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>结构化结果</h2>
+          <span>渲染无关的数据结构，可持续复用到其他导出链路</span>
+        </div>
+        <div id="stats" class="stats hidden"></div>
+      </div>
+
+      <div id="emptyState" class="empty-state">
+        结果会展示在这里。点击“生成 HTML 幻灯片并导出 PPT”后，页面会同时展示结构化卡片和幻灯片预览。
+      </div>
+
+      <div id="resultCards" class="cards hidden">
+        <article class="card span-12">
+          <h3>主题</h3>
+          <div id="topicText" class="topic"></div>
+        </article>
+
+        <article class="card span-7">
+          <h3>核心摘要</h3>
+          <div id="summaryList" class="stack"></div>
+        </article>
+
+        <article class="card span-5">
+          <h3>关键时间节点</h3>
+          <div id="deadlineList" class="stack"></div>
+        </article>
+
+        <article class="card span-7">
+          <h3>行动事项</h3>
+          <div id="actionList" class="stack"></div>
+        </article>
+
+        <article class="card span-5">
+          <h3>责任分工</h3>
+          <div id="ownerList" class="stack"></div>
+        </article>
+
+        <article class="card span-12">
+          <h3>汇报提纲</h3>
+          <div id="outlineList" class="stack"></div>
+        </article>
+
+        <article class="card span-12">
+          <h3>原始 JSON</h3>
+          <pre id="jsonOutput"></pre>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>HTML 幻灯片预览</h2>
+          <span>这里展示的是实际用于导出 PPT 的 HTML 幻灯片，不是简化报告页</span>
+        </div>
+      </div>
+
+      <div id="previewEmpty" class="empty-state">
+        生成完成后，这里会直接嵌入 HTML 幻灯片预览。
+      </div>
+
+      <div id="previewPanel" class="card preview-shell hidden">
+        <div class="preview-topbar">
+          <p id="previewMeta">等待生成幻灯片...</p>
+        </div>
+        <iframe id="reportFrame" title="HTML slide preview"></iframe>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const fillDemoBtn = document.getElementById("fillDemoBtn");
+    const copyJsonBtn = document.getElementById("copyJsonBtn");
+    const previewBtn = document.getElementById("previewBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const statusEl = document.getElementById("status");
+    const chatInput = document.getElementById("chatInput");
+    const emptyState = document.getElementById("emptyState");
+    const resultCards = document.getElementById("resultCards");
+    const statsEl = document.getElementById("stats");
+    const previewEmpty = document.getElementById("previewEmpty");
+    const previewPanel = document.getElementById("previewPanel");
+    const previewMeta = document.getElementById("previewMeta");
+    const reportFrame = document.getElementById("reportFrame");
+
+    const topicText = document.getElementById("topicText");
+    const summaryList = document.getElementById("summaryList");
+    const deadlineList = document.getElementById("deadlineList");
+    const actionList = document.getElementById("actionList");
+    const ownerList = document.getElementById("ownerList");
+    const outlineList = document.getElementById("outlineList");
+    const jsonOutput = document.getElementById("jsonOutput");
+
+    const demoText = "张三：我们下周一前完成需求整理。李四：我负责PPT初稿，周日晚上发你。王五：我补充数据分析部分。赵六：我明天整理业务优先级，方便你们汇总。";
+    let latestResponseJson = "";
+
+    fillDemoBtn.addEventListener("click", () => {
+      chatInput.value = demoText;
+      statusEl.textContent = "已填充示例内容，可以直接生成。";
+    });
+
+    copyJsonBtn.addEventListener("click", async () => {
+      if (!latestResponseJson) {
+        statusEl.textContent = "当前还没有可复制的 JSON 结果。";
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(latestResponseJson);
+        statusEl.textContent = "JSON 已复制到剪贴板。";
+      } catch (error) {
+        console.error(error);
+        statusEl.textContent = "复制失败，请手动复制下方原始 JSON。";
+      }
+    });
+
+    analyzeBtn.addEventListener("click", async () => {
+      const chatText = chatInput.value.trim();
+      if (!chatText) {
+        statusEl.textContent = "请先输入聊天内容。";
+        return;
+      }
+
+      setLoading(true);
+      statusEl.textContent = "正在分析聊天内容，生成 HTML 幻灯片并导出 PPT...";
+
+      try {
+        const response = await fetch("/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_text: chatText })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "接口调用失败");
+        }
+
+        renderResult(data);
+        statusEl.textContent = "生成完成，可以预览 HTML 幻灯片并下载 PPT。";
+      } catch (error) {
+        console.error(error);
+        statusEl.textContent = `生成失败：${error.message}`;
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    function setLoading(loading) {
+      analyzeBtn.disabled = loading;
+      analyzeBtn.style.opacity = loading ? "0.7" : "1";
+      analyzeBtn.textContent = loading ? "生成中..." : "生成 HTML 幻灯片并导出 PPT";
+    }
+
+    function renderResult(data) {
+      const analysis = data.analysis;
+      emptyState.classList.add("hidden");
+      resultCards.classList.remove("hidden");
+      statsEl.classList.remove("hidden");
+      previewEmpty.classList.add("hidden");
+      previewPanel.classList.remove("hidden");
+      copyJsonBtn.classList.remove("hidden");
+
+      topicText.textContent = analysis.topic || "未识别到明确主题";
+      renderSimpleList(summaryList, analysis.summary, "暂无摘要内容");
+      renderDeadlineList(deadlineList, analysis.deadlines);
+      renderActionList(actionList, analysis.action_items);
+      renderOwnerList(ownerList, analysis.owners);
+      renderOutlineList(outlineList, analysis.ppt_outline);
+
+      latestResponseJson = JSON.stringify(data, null, 2);
+      jsonOutput.textContent = latestResponseJson;
+
+      statsEl.innerHTML = "";
+      [
+        `摘要 ${analysis.summary.length} 条`,
+        `行动项 ${analysis.action_items.length} 个`,
+        `责任人 ${analysis.owners.length} 个`,
+        `提纲页 ${analysis.ppt_outline.length} 页`
+      ].forEach(text => {
+        const stat = document.createElement("div");
+        stat.className = "stat";
+        stat.textContent = text;
+        statsEl.appendChild(stat);
+      });
+
+      if (data.slides_preview_url) {
+        previewBtn.href = data.slides_preview_url;
+        previewBtn.textContent = "新窗口打开 HTML 幻灯片";
+        previewBtn.classList.remove("hidden");
+        reportFrame.src = data.slides_preview_url;
+      }
+
+      if (data.ppt_download_url) {
+        downloadBtn.href = data.ppt_download_url;
+        downloadBtn.textContent = `下载 PPT · ${data.ppt_file}`;
+        downloadBtn.classList.remove("hidden");
+      }
+
+      previewMeta.textContent = `当前文件：${data.ppt_file} ｜ 生成时间：${formatGeneratedAt(data.generated_at)}`;
+    }
+
+    function renderSimpleList(container, items, fallback) {
+      container.innerHTML = "";
+      (items && items.length ? items : [fallback]).forEach((item, index) => {
+        const node = document.createElement("div");
+        node.className = "item";
+        node.innerHTML = `<strong>摘要 ${index + 1}</strong><p>${escapeHtml(item)}</p>`;
+        container.appendChild(node);
+      });
+    }
+
+    function renderDeadlineList(container, items) {
+      container.innerHTML = "";
+      const content = items && items.length ? items : [{ item: "暂无时间节点", due: "待补充" }];
+      content.forEach(item => {
+        const node = document.createElement("div");
+        node.className = "item";
+        node.innerHTML = `<strong>${escapeHtml(item.item || "未命名节点")}</strong><p>截止时间：${escapeHtml(item.due || "待定")}</p>`;
+        container.appendChild(node);
+      });
+    }
+
+    function renderActionList(container, items) {
+      container.innerHTML = "";
+      const content = items && items.length ? items : [{ task: "暂无行动事项", owner: "", deadline: "", status: "" }];
+      content.forEach(item => {
+        const node = document.createElement("div");
+        node.className = "item";
+        node.innerHTML = `
+          <strong>${escapeHtml(item.task || "未命名事项")}</strong>
+          <p>负责人：${escapeHtml(item.owner || "待定")} ｜ 截止时间：${escapeHtml(item.deadline || "待定")} ｜ 状态：${escapeHtml(item.status || "待开始")}</p>
+        `;
+        container.appendChild(node);
+      });
+    }
+
+    function renderOwnerList(container, items) {
+      container.innerHTML = "";
+      const content = items && items.length ? items : [{ name: "暂无责任分工", responsibility: "待补充" }];
+      content.forEach(item => {
+        const node = document.createElement("div");
+        node.className = "item";
+        node.innerHTML = `<strong>${escapeHtml(item.name || "未命名角色")}</strong><p>${escapeHtml(item.responsibility || "待补充")}</p>`;
+        container.appendChild(node);
+      });
+    }
+
+    function renderOutlineList(container, items) {
+      container.innerHTML = "";
+      const content = items && items.length ? items : [{ title: "暂无提纲内容", bullets: [] }];
+      content.forEach((item, index) => {
+        const bullets = item.bullets && item.bullets.length
+          ? `<ul>${item.bullets.map(bullet => `<li>${escapeHtml(bullet)}</li>`).join("")}</ul>`
+          : `<p>暂无要点</p>`;
+        const node = document.createElement("div");
+        node.className = "item";
+        node.innerHTML = `<strong>${index + 1}. ${escapeHtml(item.title || "未命名页面")}</strong>${bullets}`;
+        container.appendChild(node);
+      });
+    }
+
+    function formatGeneratedAt(value) {
+      if (!value) return "刚刚生成";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      const pad = (num) => String(num).padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
