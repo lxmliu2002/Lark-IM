@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Pilot Mobile</title>
+  <style>
+    :root {
+      --ink: #12223f;
+      --muted: #677891;
+      --blue: #1f4fd3;
+      --cyan: #0b8aa8;
+      --green: #0e9f6d;
+      --amber: #b97718;
+      --red: #c73b3b;
+      --line: rgba(148, 163, 184, 0.2);
+      --shadow: 0 30px 90px rgba(15, 23, 42, 0.18);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 25%),
+        radial-gradient(circle at 86% 12%, rgba(8, 145, 178, 0.14), transparent 18%),
+        linear-gradient(165deg, #f8fbff 0%, #ecf3ff 54%, #f8fafc 100%);
+      padding: 18px;
+    }
+
+    .shell {
+      width: min(430px, 100%);
+      border-radius: 34px;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(16, 24, 40, 0.98), rgba(20, 34, 59, 0.98));
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .notch {
+      width: 140px;
+      height: 28px;
+      border-radius: 0 0 18px 18px;
+      margin: -18px auto 16px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .screen {
+      min-height: 820px;
+      border-radius: 28px;
+      background:
+        linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(235, 243, 255, 0.98));
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.16;
+    }
+
+    .header p,
+    .meta,
+    .card p,
+    .feed-item p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 13px;
+    }
+
+    .badge,
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .badge {
+      background: rgba(31, 79, 211, 0.1);
+      color: var(--blue);
+    }
+
+    .queued { background: rgba(253, 230, 138, 0.34); color: var(--amber); }
+    .running { background: rgba(191, 219, 254, 0.42); color: var(--blue); }
+    .completed { background: rgba(187, 247, 208, 0.42); color: var(--green); }
+    .failed { background: rgba(254, 202, 202, 0.46); color: var(--red); }
+    .warning { background: rgba(254, 240, 138, 0.44); color: var(--amber); }
+
+    .hero-card {
+      border-radius: 22px;
+      padding: 16px;
+      color: #fff;
+      background: linear-gradient(135deg, rgba(31, 79, 211, 0.96), rgba(8, 145, 178, 0.9));
+    }
+
+    .hero-card small {
+      display: block;
+      color: rgba(255, 255, 255, 0.82);
+      font-size: 12px;
+    }
+
+    .hero-card strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 22px;
+      line-height: 1.35;
+    }
+
+    .progress {
+      margin-top: 12px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      overflow: hidden;
+    }
+
+    .fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #fff, rgba(255, 255, 255, 0.72));
+      transition: width .25s ease;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button,
+    a {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform .16s ease;
+    }
+
+    button:hover,
+    a:hover {
+      transform: translateY(-1px);
+    }
+
+    .primary-btn {
+      color: #fff;
+      background: linear-gradient(135deg, #1538af, var(--blue));
+    }
+
+    .secondary-btn {
+      color: var(--blue);
+      background: rgba(219, 234, 254, 0.96);
+      border: 1px solid rgba(59, 130, 246, 0.18);
+    }
+
+    .card,
+    .feed-item {
+      border-radius: 18px;
+      padding: 14px 16px;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid rgba(226, 232, 240, 0.92);
+    }
+
+    .card strong,
+    .feed-item strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .kpis,
+    .steps,
+    .feeds,
+    .artifacts {
+      display: grid;
+      gap: 10px;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .kpi {
+      border-radius: 18px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid rgba(226, 232, 240, 0.92);
+    }
+
+    .kpi span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .kpi b {
+      display: block;
+      margin-top: 8px;
+      color: var(--blue);
+      font-size: 22px;
+    }
+
+    .list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .empty {
+      padding: 20px 16px;
+      text-align: center;
+      color: var(--muted);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px dashed rgba(148, 163, 184, 0.36);
+    }
+
+    .artifact-link {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      color: inherit;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid rgba(226, 232, 240, 0.92);
+      border-radius: 18px;
+      padding: 14px 16px;
+      text-decoration: none;
+    }
+
+    .artifact-link strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="notch"></div>
+    <section class="screen">
+      <header class="header">
+        <div>
+          <h1>移动端跟进页</h1>
+          <p>同一个 Agent 任务在移动端的跟踪视角，适合演示提醒、接力和状态同步。</p>
+        </div>
+        <div id="statusBadge" class="badge">等待任务</div>
+      </header>
+
+      <section class="hero-card">
+        <small>当前任务</small>
+        <strong id="heroTitle">等待加载任务</strong>
+        <div class="progress">
+          <div id="progressFill" class="fill"></div>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="attachBtn" class="primary-btn" type="button">同步到当前任务</button>
+        <button id="refreshBtn" class="secondary-btn" type="button">刷新</button>
+        <a id="desktopLink" class="secondary-btn" href="/" target="_blank" rel="noopener">打开桌面主控页</a>
+      </div>
+
+      <section class="kpi-grid" id="kpiGrid">
+        <div class="kpi"><span>步骤完成</span><b>0/0</b></div>
+        <div class="kpi"><span>在线设备</span><b>0</b></div>
+      </section>
+
+      <section class="card">
+        <strong>当前焦点</strong>
+        <p id="focusText">等待 Agent 任务接入。</p>
+      </section>
+
+      <section class="card">
+        <strong>下一步行动</strong>
+        <ul id="actionList" class="list"></ul>
+      </section>
+
+      <section class="card">
+        <strong>最近提醒</strong>
+        <div id="feedList" class="feeds">
+          <div class="empty">暂无提醒。</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <strong>移动端可用产物</strong>
+        <div id="artifactList" class="artifacts">
+          <div class="empty">任务完成后，这里会出现可打开的预览和交付物。</div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const statusBadge = document.getElementById("statusBadge");
+    const heroTitle = document.getElementById("heroTitle");
+    const progressFill = document.getElementById("progressFill");
+    const attachBtn = document.getElementById("attachBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const desktopLink = document.getElementById("desktopLink");
+    const kpiGrid = document.getElementById("kpiGrid");
+    const focusText = document.getElementById("focusText");
+    const actionList = document.getElementById("actionList");
+    const feedList = document.getElementById("feedList");
+    const artifactList = document.getElementById("artifactList");
+
+    let currentJobId = new URLSearchParams(window.location.search).get("job_id") || "";
+    let pollingTimer = null;
+
+    attachBtn.addEventListener("click", async () => {
+      const job = await ensureJobLoaded();
+      if (!job) return;
+      await attachMobileDevice();
+      await pollJob();
+    });
+
+    refreshBtn.addEventListener("click", async () => {
+      await ensureJobLoaded();
+    });
+
+    async function ensureJobLoaded() {
+      if (currentJobId) {
+        return pollJob();
+      }
+
+      const jobsResponse = await fetch("/api/jobs");
+      const jobs = await jobsResponse.json();
+      if (!jobs.length) {
+        renderEmpty();
+        return null;
+      }
+
+      currentJobId = jobs[0].job_id;
+      history.replaceState(null, "", `/mobile?job_id=${encodeURIComponent(currentJobId)}`);
+      return pollJob();
+    }
+
+    async function attachMobileDevice() {
+      if (!currentJobId) return;
+      await fetch(`/api/jobs/${currentJobId}/devices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          device_id: "mobile-live-page",
+          device_label: "Mobile Live Page",
+          platform: "mobile",
+          current_view: "live-mobile-page",
+          note: "独立移动端页面已接入当前任务。"
+        })
+      });
+    }
+
+    async function pollJob() {
+      if (!currentJobId) return null;
+      const response = await fetch(`/api/jobs/${currentJobId}`);
+      const job = await response.json();
+      renderJob(job);
+
+      if (!pollingTimer) {
+        pollingTimer = setInterval(async () => {
+          const latest = await fetch(`/api/jobs/${currentJobId}`).then((res) => res.json());
+          renderJob(latest);
+          if (latest.status === "completed" || latest.status === "failed") {
+            clearInterval(pollingTimer);
+            pollingTimer = null;
+          }
+        }, 2000);
+      }
+
+      return job;
+    }
+
+    function renderJob(job) {
+      desktopLink.href = `/?job_id=${encodeURIComponent(job.job_id)}`;
+      const completedSteps = job.steps.filter((step) => step.status === "completed").length;
+      const progress = job.steps.length ? Math.round((completedSteps / job.steps.length) * 100) : 0;
+      const activeStep = currentActiveStep(job.steps);
+      const latestEvents = job.events.slice(-4).reverse();
+
+      statusBadge.textContent = statusLabel(job.status);
+      statusBadge.className = `badge ${statusClass(job.status)}`;
+      heroTitle.textContent = job.brief?.topic || job.instruction || "等待生成任务主题";
+      progressFill.style.width = `${progress}%`;
+
+      kpiGrid.innerHTML = `
+        <div class="kpi"><span>步骤完成</span><b>${completedSteps}/${job.steps.length || 0}</b></div>
+        <div class="kpi"><span>在线设备</span><b>${job.sync_state.active_devices}</b></div>
+        <div class="kpi"><span>推荐 Skills</span><b>${job.suggested_skills.length}</b></div>
+        <div class="kpi"><span>交付产物</span><b>${job.artifacts.length}</b></div>
+      `;
+
+      focusText.textContent = activeStep
+        ? `${activeStep.name}：${activeStep.output_summary || activeStep.description}`
+        : "等待 Agent 任务接入。";
+
+      renderActions(job, activeStep);
+      renderFeeds(latestEvents);
+      renderArtifacts(job.artifacts);
+    }
+
+    function renderActions(job, activeStep) {
+      actionList.innerHTML = "";
+      const items = [];
+      if (activeStep) {
+        items.push(`关注当前阶段：${activeStep.name}`);
+      }
+      (job.brief?.action_items || []).slice(0, 3).forEach((item) => {
+        items.push(`${item.task}（负责人：${item.owner || "待定"}）`);
+      });
+      if (job.artifacts.some((artifact) => artifact.kind === "slides_preview")) {
+        items.push("可在移动端查看最新 Slide 预览链接。");
+      } else {
+        items.push("等待交付物生成后进行确认。");
+      }
+
+      items.slice(0, 4).forEach((text) => {
+        const li = document.createElement("li");
+        li.textContent = text;
+        actionList.appendChild(li);
+      });
+    }
+
+    function renderFeeds(events) {
+      feedList.innerHTML = "";
+      if (!events.length) {
+        feedList.innerHTML = '<div class="empty">暂无提醒。</div>';
+        return;
+      }
+
+      events.forEach((event) => {
+        const node = document.createElement("article");
+        node.className = "feed-item";
+        node.innerHTML = `
+          <strong>${escapeHtml(event.phase)} <span class="tag ${event.level === "warning" ? "warning" : event.level === "error" ? "failed" : "completed"}">${escapeHtml(event.level)}</span></strong>
+          <p>${escapeHtml(event.message)}</p>
+          <p style="margin-top:8px;">${escapeHtml(event.timestamp)}</p>
+        `;
+        feedList.appendChild(node);
+      });
+    }
+
+    function renderArtifacts(artifacts) {
+      artifactList.innerHTML = "";
+      if (!artifacts.length) {
+        artifactList.innerHTML = '<div class="empty">任务完成后，这里会出现可打开的预览和交付物。</div>';
+        return;
+      }
+
+      artifacts.forEach((artifact) => {
+        const link = document.createElement("a");
+        link.className = "artifact-link";
+        link.href = artifact.url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.innerHTML = `
+          <div>
+            <strong>${escapeHtml(artifact.label)}</strong>
+            <p>${escapeHtml(artifact.kind)}</p>
+          </div>
+          <span class="badge">打开</span>
+        `;
+        artifactList.appendChild(link);
+      });
+    }
+
+    function renderEmpty() {
+      heroTitle.textContent = "暂无任务";
+      focusText.textContent = "先在桌面主控页启动一个 Agent 任务，再打开移动端页面。";
+      feedList.innerHTML = '<div class="empty">当前没有可跟踪的任务。</div>';
+      artifactList.innerHTML = '<div class="empty">任务完成后，这里会出现可打开的预览和交付物。</div>';
+      actionList.innerHTML = "<li>打开桌面主控页启动任务。</li>";
+    }
+
+    function currentActiveStep(steps) {
+      return steps.find((step) => step.status === "running")
+        || [...steps].reverse().find((step) => step.status === "completed")
+        || steps[0];
+    }
+
+    function statusClass(status) {
+      if (status === "completed") return "completed";
+      if (status === "running") return "running";
+      if (status === "failed") return "failed";
+      if (status === "warning") return "warning";
+      return "queued";
+    }
+
+    function statusLabel(status) {
+      if (status === "completed") return "已完成";
+      if (status === "running") return "执行中";
+      if (status === "failed") return "失败";
+      if (status === "warning") return "警告";
+      if (status === "queued") return "排队中";
+      if (status === "pending") return "待执行";
+      return status;
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    ensureJobLoaded();
+  </script>
+</body>
+</html>

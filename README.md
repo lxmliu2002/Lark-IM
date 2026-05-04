@@ -1,159 +1,152 @@
-# Lark-IM
+# Lark-IM Agent Pilot
 
-飞书AI产品创新赛道-基于IM的办公协同智能助手
+飞书 AI 产品创新赛道原型项目，目标是把原来的“单次 IM 转 PPT”原型升级为一个真正的 Agent-Pilot 系统。
 
-## 项目简介
+## 当前主流程
 
-这是一个基于 IM 聊天内容生成汇报材料的原型项目，当前已经跑通这条主链路：
+```text
+IM / 飞书入口
+-> 自然语言指令
+-> Agent Harness
+-> 任务拆解 / 规划
+-> PPT / 文档生成
+-> 多端状态同步
+-> 报告或 Slide 交付
+```
 
-`IM 聊天文本 -> 大模型结构化分析 -> HTML 幻灯片 -> 浏览器渲染 -> 导出为 PPT`
+核心理念：
 
-## 当前已完成
+- AI Agent 是主驾驶
+- GUI 是仪表盘与同步状态板
+- 文档、演示稿、多端协作都由统一任务状态驱动
 
-目前项目已经具备这些能力：
+## 这次重构后的结构
 
-- 输入一段 IM 聊天内容
-- 调用大模型提取：
-  - 主题
-  - 核心摘要
-  - 行动事项
-  - 负责人
-  - 截止时间
-  - 汇报提纲
-- 将结构化结果渲染为 HTML 幻灯片
-- 使用本机浏览器无头渲染 HTML 幻灯片
-- 自动导出为真正的 `.pptx` 文件
-- 提供本地网页页面进行：
-  - 输入聊天内容
-  - 查看结构化结果
-  - 预览 HTML 幻灯片
-  - 下载最终 PPT
+```text
+pilot_app/
+  __init__.py
+  content.py        # 内容简报、报告、清单生成
+  harness.py        # Agent Harness 主编排器
+  llm.py            # LLM JSON 输出封装
+  models.py         # 统一数据模型
+  planner.py        # 任务规划器
+  server.py         # FastAPI 应用
+  skills.py         # Lark skills 执行层抽象
+  store.py          # 多端共享状态存储
 
-## 项目结构
+main.py             # 入口，直接暴露 FastAPI app
+html_slides.py      # HTML Slide 渲染
+ppt_tool.py         # 浏览器截图并导出 pptx
+web_ui.html         # Agent 仪表盘
+```
 
-- [main.py](./main.py)
-  FastAPI 服务入口，负责接口、网页入口、导出链路调度。
+## 已实现能力
 
-- [agent.py](./agent.py)
-  调用大模型，返回结构化 JSON。
+- 从 IM / 飞书风格输入创建一个 Agent 任务
+- 用 Agent Planner 生成六阶段执行计划
+- 生成文档草稿、HTML Slide 和 `.pptx`
+- 维护统一的任务状态、步骤状态、事件流和设备状态
+- 支持桌面端 / 移动端设备签到，演示多端一致性
+- 输出交付清单 `manifest.json`
+- 预留 `lark-im`、`lark-doc`、`lark-slides`、`lark-drive`、`lark-event`、`lark-whiteboard`、`lark-wiki` 的 skills 层
+- 已接入官方 `lark-cli`，并支持将报告同步为真实飞书 Doc（运行环境允许联网时）
 
-- [schemas.py](./schemas.py)
-  定义结构化数据模型。
+## 与 larksuite/cli 的关系
 
-- [html_slides.py](./html_slides.py)
-  将结构化结果渲染成 16:9 HTML 幻灯片。
+本项目参考了 `larksuite/cli` 的 skill 体系来设计执行层，尤其适合接入：
 
-- [ppt_tool.py](./ppt_tool.py)
-  调用本机浏览器截图 HTML 幻灯片，并封装成 `.pptx`。
+- `lark-im`
+- `lark-doc`
+- `lark-slides`
+- `lark-drive`
+- `lark-event`
+- `lark-whiteboard`
+- `lark-wiki`
 
-- [web_ui.html](./web_ui.html)
-  本地演示页面。
+参考仓库：
 
-- `outputs/`
-  运行后生成的 HTML 幻灯片、截图中间产物和最终 PPT。
+- https://github.com/larksuite/cli
+- https://github.com/larksuite/cli/tree/main/.github/workflows
 
-## 运行环境
+当前代码里已经把这些能力抽象成 `pilot_app/skills.py`，默认是 `simulated` 模式，后续可以替换成真实 CLI 或 API 调用。
 
-建议环境：
+## 当前飞书接入状态
 
-- Python 3.9+
-- Windows
-- 已安装 Microsoft Edge 或 Google Chrome
+目前已经完成：
 
-说明：
+- `lark-cli` 官方二进制接入
+- `config init --new` 应用配置
+- `auth login` 用户授权
+- 项目内 `lark-cli` 状态探测接口：`/api/lark/status`
+- 项目内在线查询测试接口：`/api/lark/search-users`
+- 任务执行时自动尝试将报告同步为飞书 Doc
 
-- 当前导出 PPT 依赖本机浏览器无头渲染 HTML
-- 默认优先查找 Edge，其次 Chrome
+当前仍受飞书应用 scope 限制的部分：
 
-## 安装依赖
+- `drive:file:upload`
+- `slides:presentation:create`
 
-在项目根目录执行：
+如果你要继续打通飞书 Drive / Slides，需要先在飞书开放平台里为这个 CLI 应用启用对应 scope。
+
+## 运行方式
+
+安装依赖：
 
 ```powershell
 python -m pip install -r requirements.txt
 ```
 
-## 环境变量
-
-不要直接共享真实 `.env`。
-
-请复制 `.env.example` 为 `.env`，然后填写真实值：
-
-```powershell
-Copy-Item .env.example .env
-```
-
-需要配置的主要变量：
-
-- `ARK_API_KEY`
-  火山引擎 API Key
-
-- `ARK_MODEL_ID`
-  例如 `ep-xxxxxxxx`
-
-- `ARK_BASE_URL`
-  默认可用：`https://ark.cn-beijing.volces.com/api/v3`
-
-- `HTML_RENDER_BROWSER`
-  可选。如果浏览器不是默认安装路径，就手动填写浏览器 exe 完整路径
-
-## 启动方式
-
-在项目根目录执行：
+启动：
 
 ```powershell
 python -m uvicorn main:app --reload
 ```
 
-启动后打开：
+打开：
 
 ```text
 http://127.0.0.1:8000/
 ```
 
-## 运行流程
+独立移动端演示页：
 
-1. 在网页里粘贴 IM 聊天内容
-2. 点击“生成 HTML 幻灯片并导出 PPT”
-3. 后端调用大模型生成结构化结果
-4. 后端生成 HTML 幻灯片
-5. 后端调用浏览器无头渲染每一页 HTML
-6. 后端把渲染结果封装成 `.pptx`
-7. 前端页面展示：
-   - 结构化 JSON
-   - HTML 幻灯片预览
-   - PPT 下载按钮
+```text
+http://127.0.0.1:8000/mobile
+```
 
-## 队友接手建议
+## 环境变量
 
-如果要继续开发，建议按模块分工：
+复制：
 
-- 内容分析和提示词优化：
-  [agent.py](./agent.py)
+```powershell
+Copy-Item .env.example .env
+```
 
-- 数据结构扩展：
-  [schemas.py](./schemas.py)
+常用变量：
 
-- HTML 幻灯片视觉优化：
-  [html_slides.py](./html_slides.py)
+- `ARK_API_KEY`
+- `ARK_MODEL_ID`
+- `ARK_BASE_URL`
+- `HTML_RENDER_BROWSER`
+- `LARK_SKILL_EXECUTION_MODE`
 
-- PPT 导出链路优化：
-  [ppt_tool.py](./ppt_tool.py)
+说明：
 
-- 页面交互和演示体验：
-  [web_ui.html](./web_ui.html)
+- 如果没有配置 LLM，系统会走本地 fallback 逻辑
+- 如果没有安装 `lark-cli`，skills 会以模拟模式展示
 
-## 当前注意事项
+## 演示建议
 
-- 当前视觉主导是 HTML/CSS，不是原生 PPT 排版
-- 最终导出的 PPT，本质上是“每页一张浏览器渲染图片”
-- 如果队友电脑上没有 Edge/Chrome，PPT 导出会失败
-- 如果浏览器路径不在默认位置，需要在 `.env` 里设置 `HTML_RENDER_BROWSER`
+推荐按下面顺序演示：
 
-## 可以继续优化的方向
+1. 在 IM / 飞书入口输入自然语言指令
+2. 启动 Agent 任务，展示 Harness 自动分步执行
+3. 让桌面端和移动端分别签到，展示状态同步
+4. 打开文档草稿、HTML Slide 预览和 `.pptx`
+5. 展示最终 manifest 清单，强调完整交付链路
 
-- 接入 AI 生成配图，并自动嵌入 HTML 幻灯片
-- 增加不同视觉主题切换
-- 支持导出 PDF
-- 支持每页单独图表或数据卡片
-- 支持更多办公场景：会议纪要、周报、任务跟踪
+补充说明：
+
+- `/` 是桌面主控页
+- `/mobile` 是独立移动端跟进页
+- 桌面页里可以直接打开带 `job_id` 的移动端链接，适合双窗口答辩演示

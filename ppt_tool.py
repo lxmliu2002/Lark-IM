@@ -21,20 +21,17 @@ def render_html_slides_to_ppt(slide_files: list[str], output_path: str) -> str:
 
     image_dir = output_file.parent / f"{output_file.stem}_images"
     image_dir.mkdir(parents=True, exist_ok=True)
-    profile_dir = output_file.parent / f"{output_file.stem}_edge_profile"
-    profile_dir.mkdir(parents=True, exist_ok=True)
-
     image_paths: list[Path] = []
     for index, slide_file in enumerate(slide_files, start=1):
         image_path = image_dir / f"slide_{index:02}.png"
-        _capture_slide(browser_path, Path(slide_file), image_path, profile_dir)
+        _capture_slide(browser_path, Path(slide_file), image_path)
         image_paths.append(image_path)
 
     _images_to_ppt(image_paths, output_file)
     return str(output_file)
 
 
-def _capture_slide(browser_path: str, slide_file: Path, image_path: Path, profile_dir: Path) -> None:
+def _capture_slide(browser_path: str, slide_file: Path, image_path: Path) -> None:
     slide_uri = slide_file.resolve().as_uri()
     command = [
         browser_path,
@@ -43,7 +40,6 @@ def _capture_slide(browser_path: str, slide_file: Path, image_path: Path, profil
         "--hide-scrollbars",
         "--window-size=%d,%d" % (CAPTURE_WIDTH, CAPTURE_HEIGHT),
         "--screenshot=%s" % str(image_path.resolve()),
-        "--user-data-dir=%s" % str(profile_dir.resolve()),
         slide_uri,
     ]
 
@@ -51,6 +47,8 @@ def _capture_slide(browser_path: str, slide_file: Path, image_path: Path, profil
         command,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=45,
         check=False,
     )
