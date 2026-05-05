@@ -38,6 +38,39 @@ class DeliveryMode(str, Enum):
     both = "both"
 
 
+class ScenarioId(str, Enum):
+    intake = "intake"
+    plan = "plan"
+    document = "document"
+    slides = "slides"
+    sync = "sync"
+    delivery = "delivery"
+
+
+class AcceptanceStatus(str, Enum):
+    draft = "draft"
+    pending = "pending"
+    confirmed = "confirmed"
+    passed = "passed"
+    failed = "failed"
+
+
+class SessionSource(BaseModel):
+    kind: str = "chat"
+    source_id: str = ""
+    label: str = ""
+    transcript: str = ""
+
+
+class AcceptanceState(BaseModel):
+    criteria: list[str] = Field(default_factory=list)
+    status: AcceptanceStatus = AcceptanceStatus.draft
+    confirmed_by: str = ""
+    confirmed_at: str = ""
+    result_summary: str = ""
+    note: str = ""
+
+
 class ActionItem(BaseModel):
     task: str
     owner: str = ""
@@ -84,6 +117,9 @@ class JobCreateRequest(BaseModel):
     chat_text: str = ""
     voice_text: str = ""
     preferred_output: DeliveryMode = DeliveryMode.both
+    session_sources: list[SessionSource] = Field(default_factory=list)
+    scenario_ids: list[ScenarioId] = Field(default_factory=list)
+    auto_run: bool = True
     client_id: str = "web-console"
     device_id: str = "desktop-console"
     device_label: str = "Desktop Console"
@@ -140,6 +176,17 @@ class EventRecord(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class ActiveEventRecord(BaseModel):
+    job_id: str
+    status: JobStatus
+    topic: str = ""
+    instruction: str = ""
+    timestamp: str
+    phase: str
+    message: str
+    level: str = "info"
+
+
 class SyncState(BaseModel):
     active_devices: int = 0
     consistency: str = "synced"
@@ -157,6 +204,9 @@ class JobState(BaseModel):
     success_criteria: list[str] = Field(default_factory=list)
     clarification_questions: list[str] = Field(default_factory=list)
     suggested_skills: list[str] = Field(default_factory=list)
+    scenario_ids: list[ScenarioId] = Field(default_factory=lambda: list(ScenarioId))
+    acceptance: AcceptanceState = Field(default_factory=AcceptanceState)
+    available_actions: list[str] = Field(default_factory=list)
     steps: list[PlanStep] = Field(default_factory=list)
     brief: Optional[ContentBrief] = None
     artifacts: list[ArtifactRef] = Field(default_factory=list)
@@ -176,6 +226,8 @@ class LarkIMJobRequest(BaseModel):
     instruction: str
     chat_id: str = ""
     user_id: str = ""
+    session_sources: list[SessionSource] = Field(default_factory=list)
+    scenario_ids: list[ScenarioId] = Field(default_factory=lambda: list(ScenarioId))
     preferred_output: DeliveryMode = DeliveryMode.both
     message_limit: int = 20
     client_id: str = "lark-im-trigger"
@@ -203,6 +255,50 @@ class JobSummary(BaseModel):
     updated_at: str
     topic: str = ""
     instruction: str
+    scenario_ids: list[ScenarioId] = Field(default_factory=list)
+
+
+class ScenarioRunRequest(BaseModel):
+    scenario_ids: list[ScenarioId]
+    device_id: str = "web-console"
+    platform: Platform = Platform.desktop
+    note: str = ""
+
+
+class AcceptanceUpdateRequest(BaseModel):
+    confirmed: bool = True
+    note: str = ""
+    confirmed_by: str = "user"
+
+
+class BotWebhookRequest(BaseModel):
+    event_id: str = ""
+    instruction: str = ""
+    chat_id: str = ""
+    user_id: str = ""
+    sender_id: str = ""
+    text: str = ""
+    message_type: str = "text"
+
+
+class BotWebhookAccepted(JobAccepted):
+    reply_mode: str = "reserved"
+    event_id: str = ""
+
+
+class LarkSessionSearchResult(BaseModel):
+    kind: str
+    source_id: str
+    label: str
+    available: bool = True
+    note: str = ""
+
+
+class LarkSessionPreviewRequest(BaseModel):
+    kind: str
+    source_id: str
+    label: str = ""
+    message_limit: int = 20
 
 
 class SkillDefinition(BaseModel):

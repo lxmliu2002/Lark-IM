@@ -109,6 +109,23 @@ class LarkCLIClient:
             ["contact", "+search-user", "--query", query, "--format", "json", "--as", "user"]
         )
 
+    def search_chats(self, query: str, page_size: int = 10) -> dict[str, Any]:
+        return self._run_json(
+            [
+                "im",
+                "+chat-search",
+                "--query",
+                query,
+                "--page-size",
+                str(max(1, min(page_size, 20))),
+                "--format",
+                "json",
+                "--as",
+                "user",
+            ],
+            timeout=60,
+        )
+
     def list_chat_messages(
         self,
         chat_id: str = "",
@@ -165,6 +182,25 @@ class LarkCLIClient:
         result["chat_text"] = "\n".join(transcript_lines)
         result["source_label"] = chat_id or user_id
         return result
+
+    def build_session_transcript(
+        self,
+        *,
+        kind: str,
+        source_id: str,
+        message_limit: int = 20,
+        label: str = "",
+    ) -> dict[str, Any]:
+        preview = self.build_chat_transcript(
+            chat_id=source_id if kind == "chat" else "",
+            user_id=source_id if kind == "user" else "",
+            message_limit=message_limit,
+        )
+        if preview.get("ok"):
+            preview["kind"] = kind
+            if label:
+                preview["source_label"] = label
+        return preview
 
     def send_message(
         self,

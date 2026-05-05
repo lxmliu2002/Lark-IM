@@ -9,16 +9,16 @@ from ppt_tool import render_html_slides_to_ppt
 from .content import build_content_brief, build_manifest_payload, render_report_markdown, write_json
 from .lark_cli import LarkCLIClient
 from .llm import LLMJsonClient
-from .models import ArtifactRef, ContentBrief, JobStatus, StepStatus
+from .models import AcceptanceStatus, ArtifactRef, ContentBrief, JobStatus, ScenarioId, StepStatus
 from .planner import AgentPlanner
 from .skills import LarkSkillRegistry
-from .store import InMemoryJobStore
+from .store import MySQLJobStore
 
 
 class AgentHarness:
     def __init__(
         self,
-        store: InMemoryJobStore,
+        store: MySQLJobStore,
         planner: AgentPlanner,
         llm_client: LLMJsonClient,
         lark_cli: LarkCLIClient,
@@ -34,6 +34,13 @@ class AgentHarness:
 
     def run_job(self, job_id: str) -> None:
         job = self.store.get_job(job_id)
+        plan = self._ensure_plan(job_id)
+        auto_scenarios = self.planner.infer_scenarios(job.request, plan)
+        selected_scenarios = job.scenario_ids or auto_scenarios
+        self.run_scenarios(job_id, selected_scenarios, finalize=True)
+
+    def run_scenarios(self, job_id: str, scenario_ids: list[ScenarioId], finalize: bool = False) -> None:
+        job = self.store.get_job(job_id)
         job_dir = self.output_root / job_id
         deck_dir = job_dir / "slides"
         delivery_dir = job_dir / "delivery"
@@ -45,128 +52,187 @@ class AgentHarness:
             self.store.set_status(job_id, JobStatus.running)
             self.store.add_event(job_id, "harness", "Agent Harness 已接管任务。")
 
-            plan = self.planner.plan(job.request)
-            self.store.set_plan(
-                job_id,
-                goal=plan.goal,
-                success_criteria=plan.success_criteria,
-                clarification_questions=plan.clarification_questions,
-                suggested_skills=plan.suggested_skills,
-                steps=plan.steps,
-            )
+            selected = list(dict.fromkeys(scenario_ids or list(ScenarioId)))
+            plan = self._ensure_plan(job_id)
 
-            self._run_phase(job_id, "intake", "已完成 IM / 飞书入口整理。")
-            self._run_phase(
-                job_id,
-                "plan",
-                f"已生成执行计划，推荐 skills：{', '.join(plan.suggested_skills) or 'none'}",
-            )
-
-            brief = build_content_brief(job.request, plan, self.llm_client)
-            self.store.set_brief(job_id, brief)
-
-            report_path = delivery_dir / "report.md"
-            report_path.write_text(render_report_markdown(job.request, plan, brief), encoding="utf-8")
-            self.store.add_artifact(
-                job_id,
-                ArtifactRef(
-                    kind="report_markdown",
-                    label="汇报文档草稿",
-                    path=str(report_path),
-                    url=f"/artifacts/{job_id}/delivery/report.md",
-                ),
-            )
-
-            document_notes = ["文档草稿已生成。"]
-            doc_sync_summary = self._sync_report_to_feishu_doc(job_id, report_path, brief.topic or "Agent Pilot 报告")
-            if doc_sync_summary:
-                document_notes.append(doc_sync_summary)
-            self._run_phase(job_id, "document", " ".join(document_notes))
-
-            slide_deck = generate_slide_deck(brief, str(deck_dir), self.store.get_job(job_id).updated_at, plan.goal)
-            self.store.add_artifact(
-                job_id,
-                ArtifactRef(
-                    kind="slides_preview",
-                    label="HTML Slide 预览",
-                    path=str(slide_deck.index_file),
-                    url=f"/artifacts/{job_id}/slides/index.html",
-                ),
-            )
-
-            slide_notes = ["HTML Slide 已生成。"]
-            ppt_path = delivery_dir / f"{job_id}.pptx"
-            try:
-                render_html_slides_to_ppt([str(path) for path in slide_deck.slide_files], str(ppt_path))
-                self.store.add_artifact(
+            if ScenarioId.intake in selected:
+                self._run_phase(job_id, "intake", "已完成 IM / 飞书入口整理。")
+            if ScenarioId.plan in selected:
+                self._run_phase(
                     job_id,
-                    ArtifactRef(
-                        kind="pptx",
-                        label="PPT 交付文件",
-                        path=str(ppt_path),
-                        url=f"/artifacts/{job_id}/delivery/{ppt_path.name}",
-                    ),
+                    "plan",
+                    f"已生成执行计划，推荐 skills：{', '.join(plan.suggested_skills) or 'none'}",
                 )
-                slide_notes.append("PPT 文件已导出。")
-            except Exception as exc:
+            if ScenarioId.document in selected:
+                self._run_document(job_id, delivery_dir)
+            if ScenarioId.slides in selected:
+                self._run_slides(job_id, deck_dir, delivery_dir)
+            if ScenarioId.sync in selected:
                 self.store.add_event(
                     job_id,
-                    "slides",
-                    f"PPT 导出因当前环境限制被跳过：{exc}",
-                    level="warning",
+                    "sync",
+                    "当前任务状态已广播到多端状态板，可由桌面端和移动端继续接管。",
+                    metadata={"skills": ["lark-event"]},
                 )
-                slide_notes.append("PPT 导出在当前环境中被跳过。")
+                self._run_phase(job_id, "sync", self.skills.phase_summary(["lark-event"]))
+            if ScenarioId.delivery in selected:
+                self._run_delivery(job_id, delivery_dir)
 
-            lark_slide_summary = self._sync_outline_to_feishu_slides(job_id, brief)
-            if lark_slide_summary:
-                slide_notes.append(lark_slide_summary)
-            self._run_phase(job_id, "slides", " ".join(slide_notes))
-
-            self.store.add_event(
-                job_id,
-                "sync",
-                "当前任务状态已广播到多端状态板，可由桌面端和移动端继续接管。",
-                metadata={"skills": ["lark-event"]},
-            )
-            self._run_phase(job_id, "sync", self.skills.phase_summary(["lark-event"]))
-
-            drive_summary = self._upload_delivery_artifacts_to_drive(
-                job_id,
-                [report_path, ppt_path] if ppt_path.exists() else [report_path],
-            )
-
-            manifest_path = delivery_dir / "manifest.json"
-            artifact_urls = {artifact.kind: artifact.url for artifact in self.store.get_job(job_id).artifacts}
-            write_json(manifest_path, build_manifest_payload(job.request, plan, brief, artifact_urls))
-            self.store.add_artifact(
-                job_id,
-                ArtifactRef(
-                    kind="manifest",
-                    label="交付清单",
-                    path=str(manifest_path),
-                    url=f"/artifacts/{job_id}/delivery/manifest.json",
-                ),
-            )
-
-            manifest_upload_summary = self._upload_delivery_artifacts_to_drive(job_id, [manifest_path])
-            if manifest_upload_summary and drive_summary:
-                drive_summary = f"{drive_summary} {manifest_upload_summary}"
-            elif manifest_upload_summary:
-                drive_summary = manifest_upload_summary
-
-            artifact_urls = {artifact.kind: artifact.url for artifact in self.store.get_job(job_id).artifacts}
-            write_json(manifest_path, build_manifest_payload(job.request, plan, brief, artifact_urls))
-
-            delivery_notes = ["已生成报告、Slide 与交付清单。"]
-            if drive_summary:
-                delivery_notes.append(drive_summary)
-            self._run_phase(job_id, "delivery", " ".join(delivery_notes))
-
-            self.store.set_status(job_id, JobStatus.completed)
-            self.store.add_event(job_id, "delivery", "任务已完成，可在任意端查看和交付。")
+            latest = self.store.get_job(job_id)
+            if finalize or all(step.status == StepStatus.completed for step in latest.steps if step.id in {item.value for item in selected}):
+                self.store.set_status(job_id, JobStatus.completed)
+                self.store.set_acceptance(job_id, status=AcceptanceStatus.passed)
+                self.store.add_event(job_id, "delivery", "任务已完成，可在任意端查看和交付。")
+            else:
+                self.store.set_status(job_id, JobStatus.queued)
         except Exception as exc:
             self.store.set_status(job_id, JobStatus.failed, str(exc))
             self.store.add_event(job_id, "error", f"任务失败：{exc}", level="error")
+
+    def _ensure_plan(self, job_id: str):
+        job = self.store.get_job(job_id)
+        if job.steps:
+            return self.planner.plan(job.request)
+
+        plan = self.planner.plan(job.request)
+        self.store.set_plan(
+            job_id,
+            goal=plan.goal,
+            success_criteria=plan.success_criteria,
+            clarification_questions=plan.clarification_questions,
+            suggested_skills=plan.suggested_skills,
+            steps=plan.steps,
+        )
+        return plan
+
+    def _ensure_brief(self, job_id: str) -> ContentBrief:
+        job = self.store.get_job(job_id)
+        if job.brief:
+            return job.brief
+        plan = self._ensure_plan(job_id)
+        brief = build_content_brief(job.request, plan, self.llm_client)
+        self.store.set_brief(job_id, brief)
+        return brief
+
+    def _run_document(self, job_id: str, delivery_dir: Path) -> Path:
+        job = self.store.get_job(job_id)
+        plan = self._ensure_plan(job_id)
+        brief = self._ensure_brief(job_id)
+        report_path = delivery_dir / "report.md"
+        report_path.write_text(render_report_markdown(job.request, plan, brief), encoding="utf-8")
+        report_url = f"/artifacts/{job_id}/delivery/report.md"
+        self.store.add_artifact(
+            job_id,
+            ArtifactRef(
+                kind="report_markdown",
+                label="汇报文档草稿",
+                path=str(report_path),
+                url=report_url,
+            ),
+        )
+        self.store.add_event(
+            job_id,
+            "document",
+            f"报告已保存到本地：{report_path}；在线打开：{report_url}",
+        )
+
+        document_notes = ["文档草稿已生成。"]
+        doc_sync_summary = self._sync_report_to_feishu_doc(job_id, report_path, brief.topic or "Agent Pilot 报告")
+        if doc_sync_summary:
+            document_notes.append(doc_sync_summary)
+        self._run_phase(job_id, "document", " ".join(document_notes))
+        return report_path
+
+    def _run_slides(self, job_id: str, deck_dir: Path, delivery_dir: Path) -> Path:
+        job = self.store.get_job(job_id)
+        plan = self._ensure_plan(job_id)
+        brief = self._ensure_brief(job_id)
+        slide_deck = generate_slide_deck(brief, str(deck_dir), job.updated_at, plan.goal)
+        self.store.add_artifact(
+            job_id,
+            ArtifactRef(
+                kind="slides_preview",
+                label="HTML Slide 预览",
+                path=str(slide_deck.index_file),
+                url=f"/artifacts/{job_id}/slides/index.html",
+            ),
+        )
+
+        slide_notes = ["HTML Slide 已生成。"]
+        ppt_path = delivery_dir / f"{job_id}.pptx"
+        try:
+            render_html_slides_to_ppt([str(path) for path in slide_deck.slide_files], str(ppt_path))
+            self.store.add_artifact(
+                job_id,
+                ArtifactRef(
+                    kind="pptx",
+                    label="PPT 交付文件",
+                    path=str(ppt_path),
+                    url=f"/artifacts/{job_id}/delivery/{ppt_path.name}",
+                ),
+            )
+            slide_notes.append("PPT 文件已导出。")
+        except Exception as exc:
+            warning_message = str(exc)
+            if "No supported browser was found" in warning_message:
+                warning_message = (
+                    "当前环境未找到可用浏览器，已跳过 PPT 导出。"
+                    "请安装 Chrome/Edge，或在 .env 中配置 HTML_RENDER_BROWSER 指向浏览器可执行文件。"
+                )
+            self.store.add_event(
+                job_id,
+                "slides",
+                f"PPT 导出因当前环境限制被跳过：{warning_message}",
+                level="warning",
+            )
+            slide_notes.append("PPT 导出在当前环境中被跳过，但 HTML 预览已保留。")
+
+        lark_slide_summary = self._sync_outline_to_feishu_slides(job_id, brief)
+        if lark_slide_summary:
+            slide_notes.append(lark_slide_summary)
+        self._run_phase(job_id, "slides", " ".join(slide_notes))
+        return ppt_path
+
+    def _run_delivery(self, job_id: str, delivery_dir: Path) -> None:
+        job = self.store.get_job(job_id)
+        plan = self._ensure_plan(job_id)
+        brief = self._ensure_brief(job_id)
+        report_path = delivery_dir / "report.md"
+        if not report_path.exists():
+            report_path = self._run_document(job_id, delivery_dir)
+        ppt_path = delivery_dir / f"{job_id}.pptx"
+
+        drive_summary = self._upload_delivery_artifacts_to_drive(
+            job_id,
+            [report_path, ppt_path] if ppt_path.exists() else [report_path],
+        )
+
+        manifest_path = delivery_dir / "manifest.json"
+        artifact_urls = {artifact.kind: artifact.url for artifact in self.store.get_job(job_id).artifacts}
+        write_json(manifest_path, build_manifest_payload(job.request, plan, brief, artifact_urls))
+        self.store.add_artifact(
+            job_id,
+            ArtifactRef(
+                kind="manifest",
+                label="交付清单",
+                path=str(manifest_path),
+                url=f"/artifacts/{job_id}/delivery/manifest.json",
+            ),
+        )
+
+        manifest_upload_summary = self._upload_delivery_artifacts_to_drive(job_id, [manifest_path])
+        if manifest_upload_summary and drive_summary:
+            drive_summary = f"{drive_summary} {manifest_upload_summary}"
+        elif manifest_upload_summary:
+            drive_summary = manifest_upload_summary
+
+        artifact_urls = {artifact.kind: artifact.url for artifact in self.store.get_job(job_id).artifacts}
+        write_json(manifest_path, build_manifest_payload(job.request, plan, brief, artifact_urls))
+
+        delivery_notes = ["已生成报告、Slide 与交付清单。"]
+        if drive_summary:
+            delivery_notes.append(drive_summary)
+        self._run_phase(job_id, "delivery", " ".join(delivery_notes))
 
     def _run_phase(self, job_id: str, step_id: str, summary: str) -> None:
         self.store.update_step(job_id, step_id, StepStatus.running)
@@ -205,16 +271,15 @@ class AgentHarness:
                         url=doc_url,
                     ),
                 )
+                self.store.add_event(job_id, "document", f"飞书 Doc 已创建：{doc_url}")
             permission_grant = data.get("permission_grant", {})
             if permission_grant and permission_grant.get("status") == "failed":
                 self.store.add_event(
                     job_id,
                     "document",
-                    f"飞书 Doc 已创建，但自动授权失败：{permission_grant.get('message', '')}",
+                    f"飞书 Doc 授权失败：{permission_grant.get('message', '')}",
                     level="warning",
                 )
-            else:
-                self.store.add_event(job_id, "document", "飞书 Doc 已创建并加入交付列表。")
             return "飞书 Doc 已同步。"
 
         self._record_lark_warning(job_id, "document", "飞书 Doc 同步失败", result)

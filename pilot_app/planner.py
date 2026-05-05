@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .llm import LLMJsonClient
-from .models import DeliveryMode, JobCreateRequest, PlanStep, PlanningResult
+from .models import DeliveryMode, JobCreateRequest, PlanStep, PlanningResult, ScenarioId
 
 
 CANONICAL_PHASES = [
@@ -191,3 +191,39 @@ Chat content:
             DeliveryMode.both: "报告与 Slide",
         }[request.preferred_output]
         return f"根据用户指令生成{output_label}，并保持多端状态同步。"
+
+    def infer_scenarios(self, request: JobCreateRequest, plan: PlanningResult) -> list[ScenarioId]:
+        instruction = f"{request.instruction} {request.chat_text}".lower()
+        selected: list[ScenarioId] = [ScenarioId.intake, ScenarioId.plan]
+
+        doc_keywords = ["文档", "doc", "报告", "纪要", "总结"]
+        slide_keywords = ["slide", "slides", "ppt", "演示", "汇报"]
+        sync_keywords = ["同步", "多端", "移动端", "桌面端", "状态"]
+
+        wants_doc = request.preferred_output in {DeliveryMode.report, DeliveryMode.both} or any(
+            key in instruction for key in doc_keywords
+        )
+        wants_slides = request.preferred_output in {DeliveryMode.slides, DeliveryMode.both} or any(
+            key in instruction for key in slide_keywords
+        )
+        wants_sync = any(key in instruction for key in sync_keywords)
+
+        if wants_doc:
+            selected.append(ScenarioId.document)
+        if wants_slides:
+            selected.append(ScenarioId.slides)
+        if wants_sync:
+            selected.append(ScenarioId.sync)
+
+        has_delivery_intent = any(
+            key in instruction for key in ["交付", "输出", "发给", "提交", "归档", "链接"]
+        )
+        if wants_doc or wants_slides or has_delivery_intent:
+            selected.append(ScenarioId.delivery)
+
+        # Plan may explicitly mention sync-oriented skills.
+        plan_skills = {item for item in (plan.suggested_skills or [])}
+        if "lark-event" in plan_skills and ScenarioId.sync not in selected:
+            selected.append(ScenarioId.sync)
+
+        return list(dict.fromkeys(selected))

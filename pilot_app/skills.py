@@ -11,6 +11,10 @@ class LarkSkillRegistry:
         self.cli_client = cli_client
         self.cli_available = cli_client.installed
         status = cli_client.status()
+        granted_scopes = set(str((status.auth or {}).get("scope", "")).split())
+        cli_ready = status.installed and status.configured
+        user_ready = status.authenticated or status.user_linked
+
         self.execution_mode = os.getenv("LARK_SKILL_EXECUTION_MODE", "simulated")
         if status.mode == "online":
             self.execution_mode = "cli_live"
@@ -18,13 +22,22 @@ class LarkSkillRegistry:
             self.execution_mode = "cli_bot_ready"
         elif status.mode in {"cli_installed", "cli_configured"}:
             self.execution_mode = "cli_ready"
+
+        im_available = cli_ready
+        doc_available = cli_ready and status.doc_sync_enabled
+        slides_available = cli_ready and status.slides_sync_enabled and _has_scope(granted_scopes, "slides:presentation:create")
+        drive_available = cli_ready and status.drive_upload_enabled and _has_scope(granted_scopes, "drive:file:upload")
+        event_available = cli_ready
+        whiteboard_available = cli_ready and _has_scope(granted_scopes, "whiteboard:node:create")
+        wiki_available = cli_ready and user_ready and _has_scope(granted_scopes, "wiki")
+
         self._skills = [
             SkillDefinition(
                 name="lark-im",
                 title="IM Intake",
                 category="messaging",
                 description="Read or route IM entry messages into the Agent workflow.",
-                available=self.cli_available,
+                available=im_available,
                 execution_mode=self.execution_mode,
             ),
             SkillDefinition(
@@ -32,7 +45,7 @@ class LarkSkillRegistry:
                 title="Document Drafting",
                 category="document",
                 description="Create or update structured Docs from the generated brief.",
-                available=self.cli_available,
+                available=doc_available,
                 execution_mode=self.execution_mode,
             ),
             SkillDefinition(
@@ -40,7 +53,7 @@ class LarkSkillRegistry:
                 title="Slide Delivery",
                 category="slides",
                 description="Create and manage presentation content for final delivery.",
-                available=self.cli_available,
+                available=slides_available,
                 execution_mode=self.execution_mode,
             ),
             SkillDefinition(
@@ -48,7 +61,7 @@ class LarkSkillRegistry:
                 title="Drive Delivery",
                 category="drive",
                 description="Upload artifacts, manage sharing, and support archive delivery.",
-                available=self.cli_available,
+                available=drive_available,
                 execution_mode=self.execution_mode,
             ),
             SkillDefinition(
@@ -56,7 +69,7 @@ class LarkSkillRegistry:
                 title="Realtime Sync",
                 category="sync",
                 description="Push status updates and event streams to multiple devices.",
-                available=self.cli_available,
+                available=event_available,
                 execution_mode=self.execution_mode,
             ),
             SkillDefinition(
@@ -64,7 +77,7 @@ class LarkSkillRegistry:
                 title="Canvas Support",
                 category="canvas",
                 description="Prepare future whiteboard or free-canvas operations.",
-                available=self.cli_available,
+                available=whiteboard_available,
                 execution_mode=self.execution_mode,
             ),
             SkillDefinition(
@@ -72,7 +85,7 @@ class LarkSkillRegistry:
                 title="Knowledge Retrieval",
                 category="knowledge",
                 description="Search project context or reference documents for grounding.",
-                available=self.cli_available,
+                available=wiki_available,
                 execution_mode=self.execution_mode,
             ),
         ]
@@ -85,3 +98,10 @@ class LarkSkillRegistry:
             return "No external skill attached."
         mode = self.execution_mode if self.cli_available else "simulated"
         return f"{mode}: " + ", ".join(skills)
+
+
+def _has_scope(granted_scopes: set[str], expected: str) -> bool:
+    if expected in granted_scopes:
+        return True
+    prefix = expected.split(":", 1)[0] + ":"
+    return any(scope.startswith(prefix) for scope in granted_scopes)

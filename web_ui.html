@@ -44,47 +44,22 @@
     }
 
     .hero {
-      position: relative;
-      overflow: hidden;
-      padding: 30px 32px;
-      border-radius: 28px;
-      background:
-        linear-gradient(135deg, rgba(15, 42, 131, 0.96), rgba(29, 78, 216, 0.9) 55%, rgba(8, 145, 178, 0.82));
+      padding: 14px 18px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(15, 42, 131, 0.95), rgba(29, 78, 216, 0.9));
       color: #fff;
-      box-shadow: var(--shadow-strong);
-    }
-
-    .hero::after {
-      content: "";
-      position: absolute;
-      right: -40px;
-      bottom: -52px;
-      width: 260px;
-      height: 260px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.1);
-      filter: blur(8px);
+      box-shadow: var(--shadow);
     }
 
     .hero h1 {
       margin: 0;
-      font-size: clamp(30px, 4vw, 48px);
-      line-height: 1.06;
+      font-size: clamp(18px, 2.2vw, 24px);
+      line-height: 1.2;
     }
 
-    .hero p {
-      max-width: 920px;
-      margin: 12px 0 0;
-      color: rgba(255, 255, 255, 0.88);
-      line-height: 1.75;
-      font-size: 16px;
-    }
-
+    .hero p,
     .hero-flow {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 18px;
+      display: none;
     }
 
     .flow-chip,
@@ -109,10 +84,37 @@
       gap: 20px;
     }
 
+    .intake-grid {
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      gap: 20px;
+      align-items: stretch;
+    }
+
+    .floating-panel {
+      position: sticky;
+      top: 12px;
+      box-shadow: var(--shadow-strong);
+      background: rgba(255, 255, 255, 0.97);
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .floating-panel > div:last-child {
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .quick-actions {
+      margin-bottom: 8px;
+      justify-content: flex-start;
+    }
+
     .panel,
     .result-panel,
-    .stage-panel,
-    .phone-shell {
+    .stage-panel {
       border-radius: 24px;
       border: 1px solid var(--line);
       background: var(--panel);
@@ -162,6 +164,27 @@
       gap: 12px;
     }
 
+    .event-list-scroll {
+      max-height: 420px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
+      align-content: start;
+    }
+
+    .event-list-scroll::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .event-list-scroll::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.42);
+    }
+
+    .event-list-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
     label {
       display: grid;
       gap: 8px;
@@ -201,6 +224,163 @@
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
+    }
+
+    .session-search-row {
+      grid-template-columns: minmax(0, 1fr) 164px 164px;
+      align-items: end;
+    }
+
+    .session-search-row button {
+      white-space: nowrap;
+    }
+
+    .scenario-grid,
+    .source-grid,
+    .acceptance-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .check-card,
+    .source-card,
+    .acceptance-card {
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(248, 250, 252, 0.82);
+    }
+
+    .check-card label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--ink);
+      font-size: 13px;
+    }
+
+    .check-card input {
+      width: auto;
+      box-shadow: none;
+    }
+
+    .source-card.active {
+      border-color: rgba(37, 99, 235, 0.5);
+      background: rgba(219, 234, 254, 0.72);
+    }
+
+    .source-card strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .source-card p {
+      margin: 0;
+      word-break: break-all;
+      overflow-wrap: anywhere;
+      line-height: 1.6;
+    }
+
+    .source-card button {
+      margin-top: 10px;
+    }
+
+    .floating-panel .source-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .floating-panel .inline-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .floating-panel .inline-grid button {
+      width: 100%;
+    }
+
+    .floating-panel .inline-grid label {
+      grid-column: 1 / -1;
+    }
+
+    .floating-panel .source-card p:nth-of-type(1) {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      color: #334155;
+    }
+
+    .source-card.selected-focus {
+      border-color: rgba(30, 64, 175, 0.92);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.32);
+      position: relative;
+    }
+
+    .source-card.selected-focus::after {
+      content: "当前";
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #1e40af;
+      background: rgba(219, 234, 254, 0.95);
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      border-radius: 999px;
+      padding: 2px 8px;
+    }
+
+    .message-picker {
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(248, 250, 252, 0.82);
+      max-height: 420px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      min-width: 0;
+      align-content: start;
+      padding-right: 8px;
+    }
+
+    .message-picker::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .message-picker::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.42);
+    }
+
+    .message-picker::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .message-group {
+      border-top: 1px dashed rgba(148, 163, 184, 0.28);
+      padding-top: 10px;
+      margin-top: 10px;
+    }
+
+    .message-group:first-child {
+      border-top: none;
+      padding-top: 0;
+      margin-top: 0;
+    }
+
+    .message-item {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      font-size: 13px;
+      color: var(--ink);
+      margin-top: 8px;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .message-item input {
+      width: auto;
+      margin-top: 2px;
+      box-shadow: none;
     }
 
     .actions,
@@ -262,6 +442,7 @@
       padding: 16px 18px;
       background: rgba(255, 255, 255, 0.96);
       border: 1px solid rgba(226, 232, 240, 0.9);
+      min-width: 0;
     }
 
     .skill-card strong,
@@ -290,6 +471,8 @@
       color: var(--muted);
       line-height: 1.68;
       font-size: 14px;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .queued {
@@ -362,6 +545,7 @@
       display: grid;
       gap: 16px;
       align-content: start;
+      min-width: 0;
     }
 
     .desktop-heading {
@@ -378,101 +562,32 @@
       font-size: 18px;
     }
 
-    .phone-shell {
-      padding: 18px;
-      background:
-        linear-gradient(180deg, rgba(16, 24, 40, 0.98), rgba(20, 34, 59, 0.98));
-      box-shadow: var(--shadow-strong);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .phone-notch {
-      width: 140px;
-      height: 28px;
-      border-radius: 0 0 18px 18px;
-      background: rgba(255, 255, 255, 0.08);
-      margin: -18px auto 16px;
-    }
-
-    .phone-screen {
-      border-radius: 28px;
-      background:
-        linear-gradient(180deg, rgba(247, 250, 255, 0.98), rgba(235, 243, 255, 0.98));
-      min-height: 100%;
-      padding: 18px;
-      display: grid;
-      gap: 14px;
-    }
-
-    .phone-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .phone-badge {
-      padding: 7px 10px;
-      border-radius: 999px;
-      background: rgba(31, 79, 211, 0.1);
-      color: var(--blue);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .phone-progress {
-      padding: 14px;
-      border-radius: 18px;
-      background: linear-gradient(135deg, rgba(31, 79, 211, 0.96), rgba(8, 145, 178, 0.9));
-      color: #fff;
-    }
-
-    .phone-progress small {
-      display: block;
-      color: rgba(255, 255, 255, 0.8);
-      font-size: 12px;
-    }
-
-    .phone-progress strong {
-      display: block;
-      margin-top: 8px;
-      font-size: 20px;
-    }
-
-    .progress-bar {
-      margin-top: 12px;
-      height: 10px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.16);
-      overflow: hidden;
-    }
-
-    .progress-fill {
-      height: 100%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, #fff, rgba(255, 255, 255, 0.75));
-      width: 0%;
-      transition: width .25s ease;
-    }
-
-    .mobile-card {
-      background: rgba(255, 255, 255, 0.94);
-    }
-
-    .mobile-list {
-      margin: 0;
-      padding-left: 18px;
-      color: var(--muted);
-      line-height: 1.72;
-      font-size: 14px;
-    }
-
     .artifact-card {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 14px;
+      min-width: 0;
+    }
+
+    .artifact-card > div {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .artifact-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+
+    .artifact-path {
+      margin-top: 8px !important;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px !important;
+      color: #334155 !important;
     }
 
     iframe {
@@ -492,6 +607,36 @@
       color: #dbeafe;
       font-size: 13px;
       line-height: 1.72;
+      max-width: 100%;
+      min-width: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      box-sizing: border-box;
+    }
+
+    #rawJson {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      max-height: 420px;
+      overflow-y: auto;
+      overflow-x: auto;
+      padding-right: 8px;
+    }
+
+    #rawJson::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    #rawJson::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.42);
+    }
+
+    #rawJson::-webkit-scrollbar-track {
+      background: transparent;
     }
 
     .empty {
@@ -508,10 +653,15 @@
     }
 
     @media (max-width: 1160px) {
+      .intake-grid,
       .top-grid,
       .duo-stage,
       .desktop-body {
         grid-template-columns: 1fr;
+      }
+
+      .floating-panel {
+        position: static;
       }
 
       .desktop-overview {
@@ -521,24 +671,76 @@
 
     @media (max-width: 760px) {
       .shell {
-        width: min(100vw - 16px, 1440px);
+        width: min(100vw - 16px, 100%);
+        gap: 14px;
       }
 
       .inline-grid,
-      .desktop-overview {
+      .desktop-overview,
+      .source-grid,
+      .acceptance-grid,
+      .desktop-body,
+      .desktop-column,
+      .intake-grid {
         grid-template-columns: 1fr;
       }
 
       .hero,
       .panel,
       .result-panel,
-      .stage-panel,
-      .phone-shell {
-        border-radius: 22px;
+      .stage-panel {
+        border-radius: 18px;
+        padding: 16px;
+      }
+
+      .hero h1,
+      .panel-header h2,
+      .section-header h2 {
+        font-size: 18px;
+      }
+
+      .panel-header,
+      .section-header,
+      .desktop-heading {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .actions,
+      .stage-actions,
+      .artifact-actions,
+      .stats {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      button,
+      .link-btn,
+      .actions a,
+      .stage-actions a {
+        width: 100%;
+        justify-content: center;
+        text-align: center;
+      }
+
+      .floating-panel {
+        position: static;
+        height: auto;
+      }
+
+      .floating-panel > div:last-child {
+        overflow: visible;
+      }
+
+      .event-list-scroll,
+      .message-picker,
+      #rawJson {
+        max-height: 320px;
       }
 
       iframe {
-        height: 500px;
+        width: 100%;
+        height: 320px;
       }
     }
   </style>
@@ -547,52 +749,31 @@
   <main class="shell">
     <section class="hero">
       <h1>Agent Pilot Multi-End Demo</h1>
-      <p>这版界面专门强化“桌面主控 + 移动追踪”的答辩效果。两端共享同一个 Agent 任务、同一份计划、同一条事件流，但展示重点不同：桌面端负责主控和交付，移动端负责跟踪、提醒和接力。</p>
-      <div class="hero-flow">
-        <div class="flow-chip">IM / 飞书入口</div>
-        <div class="flow-chip">自然语言指令</div>
-        <div class="flow-chip">Agent Harness</div>
-        <div class="flow-chip">任务规划</div>
-        <div class="flow-chip">Doc / Slides</div>
-        <div class="flow-chip">双端同步</div>
-        <div class="flow-chip">报告 / 交付</div>
-      </div>
     </section>
 
-    <section class="top-grid">
+    <section class="intake-grid">
       <section class="panel">
         <div class="panel-header">
           <div>
-            <h2>任务启动台</h2>
-            <span>从 IM / 飞书入口发起任务，并指定主控设备。创建后会自动补齐桌面端与移动端演示设备。</span>
+            <h2>任务输入</h2>
           </div>
         </div>
 
         <div class="stack">
-          <div class="inline-grid">
-            <label>
-              来源
-              <select id="sourceInput">
-                <option value="im">IM</option>
-                <option value="lark">飞书</option>
-                <option value="manual">手动录入</option>
-              </select>
-            </label>
+          <div class="actions quick-actions">
+            <button id="runBtn" class="primary-btn">启动 Agent 任务</button>
+            <button id="demoBtn" class="secondary-btn" type="button">填充示例</button>
+            <button id="refreshBtn" class="secondary-btn" type="button">刷新状态</button>
+          </div>
+          <div id="statusText" class="status">等待任务启动。</div>
 
+          <div class="inline-grid">
             <label>
               交付模式
               <select id="outputInput">
                 <option value="both">报告 + Slide</option>
                 <option value="report">仅报告</option>
                 <option value="slides">仅 Slide</option>
-              </select>
-            </label>
-
-            <label>
-              初始主控端
-              <select id="platformInput">
-                <option value="desktop">桌面端</option>
-                <option value="mobile">移动端</option>
               </select>
             </label>
           </div>
@@ -603,6 +784,16 @@
           </label>
 
           <label>
+            预定义任务模板（可选）
+            <select id="taskTemplateInput">
+              <option value="">不使用模板（完全按自然语言指令）</option>
+              <option value="请做一次完整链路：意图识别、任务拆解、文档生成、演示稿生成、多端同步、最终交付。">完整链路（A-F）</option>
+              <option value="请重点完成任务规划和文档沉淀，输出可执行清单与汇报文档。">规划 + 文档</option>
+              <option value="请重点产出演示稿，用于项目汇报，并附交付说明。">演示稿优先</option>
+            </select>
+          </label>
+
+          <label>
             IM / 飞书对话内容
             <textarea id="chatInput">张三：我们这周要把飞书比赛原型从“单次生成 PPT”改成“Agent 主驾驶”的系统。
 李四：需要保留 IM 入口，同时把文档、演示稿和多端同步串起来。
@@ -610,35 +801,44 @@
 赵六：移动端和桌面端都要看到同样的任务状态，最后能交付报告和 Slide。</textarea>
           </label>
 
-          <div class="actions">
-            <button id="runBtn" class="primary-btn">启动 Agent 任务</button>
-            <button id="demoBtn" class="secondary-btn" type="button">填充示例</button>
-            <button id="refreshBtn" class="secondary-btn" type="button">刷新状态</button>
-          </div>
-          <div id="statusText" class="status">等待任务启动。</div>
+          <label>
+            用户补充内容（会与勾选消息一起提交）
+            <textarea id="supplementInput" placeholder="例如：补充背景、约束条件、输出偏好、必须覆盖的风险点。"></textarea>
+          </label>
+
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel floating-panel">
         <div class="panel-header">
           <div>
-            <h2>Lark Skills 执行层</h2>
-            <span>参考 `larksuite/cli` 的 skill 体系，当前项目已经预留接入点，方便后续替换成真实飞书能力。</span>
+            <h2>飞书会话选择</h2>
           </div>
         </div>
-        <div id="larkStatusCard" class="status-card" style="margin-bottom:14px;">
-          <strong>飞书连接状态</strong>
-          <p>正在检查 lark-cli 状态...</p>
-        </div>
-        <div class="actions" style="margin-bottom:14px;">
-          <button id="larkSearchBtn" class="secondary-btn" type="button">测试飞书在线查询</button>
-        </div>
-        <div id="larkSearchResult" class="status-card" style="margin-bottom:14px;">
-          <strong>飞书在线结果</strong>
-          <p>点击上方按钮后，这里会展示一次真实飞书查询的返回结果。</p>
-        </div>
-        <div id="skillList" class="skill-list">
-          <div class="empty">技能列表加载中...</div>
+        <div>
+          <div class="meta-line" style="margin-bottom:8px;">飞书会话源（可多选）</div>
+          <div class="inline-grid session-search-row">
+            <label>
+              搜索飞书群聊 / 单聊
+              <input id="sessionSearchInput" value="比赛">
+            </label>
+            <button id="sessionSearchBtn" class="secondary-btn" type="button">搜索会话</button>
+            <button id="sessionPreviewBtn" class="secondary-btn" type="button">读取已选会话</button>
+          </div>
+          <div id="sessionSearchResults" class="source-grid" style="margin-top:10px;">
+            <div class="empty">搜索飞书会话后，这里会出现可选择的群聊和单聊。</div>
+          </div>
+          <div id="selectedSessionList" class="source-grid" style="margin-top:10px;">
+            <div class="empty">还没有选中的飞书会话。</div>
+          </div>
+          <div class="meta-line" style="margin:10px 0 8px;">已同步对话内容（复选框可选择）</div>
+          <div class="actions" style="margin-bottom:8px;">
+            <button id="selectAllMessagesBtn" class="secondary-btn" type="button">全选当前会话</button>
+            <button id="clearMessagesBtn" class="secondary-btn" type="button">清空当前会话</button>
+          </div>
+          <div id="messagePicker" class="message-picker">
+            <div class="empty">选择会话并读取后，这里会展示可勾选的聊天消息。</div>
+          </div>
         </div>
       </section>
     </section>
@@ -646,166 +846,149 @@
     <section class="result-panel">
       <div class="panel-header">
         <div>
-          <h2>双端联动演示台</h2>
-          <span>左侧是桌面主控台，右侧是移动追踪视图。两边都绑定到同一个任务状态。</span>
+          <h2>任务主控台</h2>
+          <span>统一查看计划、事件、产物与验收结果。</span>
         </div>
         <div id="jobStats" class="stats"></div>
       </div>
 
-      <div id="emptyState" class="empty">还没有选中的任务。启动任务后，这里会切换成桌面端与移动端联动视图。</div>
+      <div id="emptyState" class="empty">当前还没有可恢复的任务。启动任务后，这里会切换成任务主控视图。</div>
 
       <div id="resultShell" class="result-shell hidden">
+        <section class="stage-panel">
+          <div class="section-header">
+            <div>
+              <h2>事件总览</h2>
+              <span>先从这里选择任务，再查看下方当前任务主控内容。</span>
+            </div>
+            <select id="eventScopeSelect" style="max-width:180px;">
+              <option value="latest">最新事件</option>
+              <option value="completed">已完成任务</option>
+              <option value="running" selected>运行中任务</option>
+            </select>
+          </div>
+          <div id="activeEventList" class="event-list event-list-scroll"></div>
+        </section>
+
         <div class="stage-actions">
-          <button id="desktopSyncBtn" class="secondary-btn" type="button">桌面端接管主控</button>
-          <button id="mobileSyncBtn" class="secondary-btn" type="button">移动端接力跟进</button>
-          <button id="broadcastBtn" class="secondary-btn" type="button">双端同步广播</button>
-          <a id="openMobileBtn" class="link-btn hidden" href="/mobile" target="_blank" rel="noopener">打开独立移动端页面</a>
+          <button id="desktopSyncBtn" class="secondary-btn" type="button">同步当前设备</button>
+          <button id="confirmAcceptanceBtn" class="secondary-btn" type="button">确认验收标准</button>
         </div>
 
-        <section class="duo-stage">
-          <div class="stage-panel desktop-stage">
-            <div class="section-header">
-              <div>
-                <h2>桌面主控台</h2>
-                <span>负责看全量计划、交付产物和预览内容，是答辩时的主镜头。</span>
-              </div>
-              <div id="desktopStatusTag" class="tag queued">等待任务</div>
+        <section class="stage-panel desktop-stage">
+          <div class="section-header">
+            <div>
+              <h2>当前任务主控</h2>
+              <span>查看当前选中任务的计划、事件、产物和验收结果。</span>
             </div>
-
-            <div id="desktopOverview" class="desktop-overview"></div>
-
-            <div class="desktop-body">
-              <div class="desktop-column">
-                <section>
-                  <div class="desktop-heading">
-                    <h3>计划总览</h3>
-                    <span class="subtle">Agent Harness 输出的执行步骤</span>
-                  </div>
-                  <div id="stepList" class="step-list"></div>
-                </section>
-
-                <section>
-                  <div class="desktop-heading">
-                    <h3>内容简报</h3>
-                    <span class="subtle">文档和演示稿共享的内容底座</span>
-                  </div>
-                  <div id="briefGrid" class="brief-grid"></div>
-                </section>
-              </div>
-
-              <div class="desktop-column">
-                <section>
-                  <div class="desktop-heading">
-                    <h3>设备状态</h3>
-                    <span class="subtle">同一个任务在多端的同步快照</span>
-                  </div>
-                  <div id="deviceMiniList" class="device-mini-list"></div>
-                </section>
-
-                <section>
-                  <div class="desktop-heading">
-                    <h3>交付产物</h3>
-                    <span class="subtle">报告、Slide 和清单在这里统一收口</span>
-                  </div>
-                  <div id="artifactStack" class="artifact-stack"></div>
-                </section>
-              </div>
-            </div>
+            <div id="desktopStatusTag" class="tag queued">等待任务</div>
           </div>
 
-          <aside class="phone-shell">
-            <div class="phone-notch"></div>
-            <div class="phone-screen">
-              <div class="phone-header">
-                <strong>移动端跟踪视图</strong>
-                <div id="mobileBadge" class="phone-badge">未接入</div>
-              </div>
+          <div id="desktopOverview" class="desktop-overview"></div>
 
-              <div class="phone-progress">
-                <small>当前任务进度</small>
-                <strong id="mobileProgressTitle">等待 Agent 任务</strong>
-                <div class="progress-bar">
-                  <div id="mobileProgressFill" class="progress-fill"></div>
+          <div class="desktop-body">
+            <div class="desktop-column">
+              <section>
+                <div class="desktop-heading">
+                  <h3>计划总览</h3>
+                  <span class="subtle">Agent Harness 输出的执行步骤</span>
                 </div>
-              </div>
+                <div id="stepList" class="step-list"></div>
+              </section>
 
-              <div class="mobile-card">
-                <strong>当前焦点</strong>
-                <p id="mobileFocusText">移动端将展示当前阶段、最新提醒和下一步动作。</p>
-              </div>
+              <section>
+                <div class="desktop-heading">
+                  <h3>当前任务事件流</h3>
+                  <span class="subtle">当前任务最近 10 条执行记录</span>
+                </div>
+                <div id="eventList" class="event-list event-list-scroll"></div>
+              </section>
 
-              <div class="mobile-card">
-                <strong>最新提醒</strong>
-                <div id="mobileFeed" class="mobile-feed"></div>
-              </div>
-
-              <div class="mobile-card">
-                <strong>下一步行动</strong>
-                <ul id="mobileActions" class="mobile-list"></ul>
-              </div>
-
-              <div class="mobile-card">
-                <strong>多端一致性</strong>
-                <p id="syncSummaryText">等待任务启动。</p>
-              </div>
+              <section>
+                <div class="desktop-heading">
+                  <h3>内容简报</h3>
+                  <span class="subtle">文档和演示稿共享的内容底座</span>
+                </div>
+                <div id="briefGrid" class="brief-grid"></div>
+              </section>
             </div>
-          </aside>
-        </section>
 
-        <section class="stage-panel">
-          <div class="section-header">
-            <div>
-              <h2>事件流与交付预览</h2>
-              <span>桌面端看全量事件，移动端拿到最新提醒；两边都基于同一条事件链。</span>
-            </div>
-          </div>
+            <div class="desktop-column">
+              <section>
+                <div class="desktop-heading">
+                  <h3>交付产物</h3>
+                  <span class="subtle">报告、Slide 和清单在这里统一收口</span>
+                </div>
+                <div class="actions" style="margin-bottom:8px;">
+                  <a id="downloadAllArtifactsBtn" class="link-btn hidden" href="#" download>下载全部（zip）</a>
+                </div>
+                <div id="artifactStack" class="artifact-stack"></div>
+              </section>
 
-          <div class="top-grid" style="grid-template-columns: 0.88fr 1.12fr;">
-            <section>
-              <div class="desktop-heading">
-                <h3>事件流</h3>
-                <span class="subtle">最近 10 条任务事件</span>
-              </div>
-              <div id="eventList" class="event-list"></div>
-            </section>
+              <section>
+                <div class="desktop-heading">
+                  <h3>验收标准</h3>
+                  <span class="subtle">Agent 生成，可在任意设备确认</span>
+                </div>
+                <div id="acceptanceGrid" class="acceptance-grid"></div>
+              </section>
 
-            <section>
-              <div class="desktop-heading">
-                <h3>Slide 预览</h3>
-                <span class="subtle">桌面端主控预览区</span>
-              </div>
-              <div id="slideEmpty" class="empty">任务完成后，这里会嵌入 HTML Slide 预览。</div>
-              <iframe id="slidesFrame" class="hidden" title="slides preview"></iframe>
-            </section>
-          </div>
-        </section>
-
-        <section class="stage-panel">
-          <div class="section-header">
-            <div>
-              <h2>任务原始 JSON</h2>
-              <span>便于答辩时展示状态结构、事件流和多端设备快照。</span>
+              <section>
+                <div class="desktop-heading">
+                  <h3>任务原始 JSON</h3>
+                  <span class="subtle">当前选中任务的原始状态结构。</span>
+                </div>
+                <pre id="rawJson"></pre>
+              </section>
             </div>
           </div>
-          <pre id="rawJson"></pre>
         </section>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>飞书连接状态</h2>
+          <span>状态检查与技能可用性放在页面底部。</span>
+        </div>
+      </div>
+      <div id="larkStatusCard" class="status-card" style="margin-bottom:14px;">
+        <strong>飞书连接状态</strong>
+        <p>正在检查 lark-cli 状态...</p>
+      </div>
+      <div class="actions" style="margin-bottom:14px;">
+        <button id="larkSearchBtn" class="secondary-btn" type="button">测试飞书在线查询</button>
+      </div>
+      <div id="larkSearchResult" class="status-card" style="margin-bottom:14px;">
+        <strong>飞书在线结果</strong>
+        <p>点击上方按钮后，这里会展示一次真实飞书查询的返回结果。</p>
+      </div>
+      <div id="skillList" class="skill-list">
+        <div class="empty">技能列表加载中...</div>
       </div>
     </section>
   </main>
 
   <script>
-    const sourceInput = document.getElementById("sourceInput");
     const outputInput = document.getElementById("outputInput");
-    const platformInput = document.getElementById("platformInput");
     const instructionInput = document.getElementById("instructionInput");
     const chatInput = document.getElementById("chatInput");
+    const sessionSearchInput = document.getElementById("sessionSearchInput");
+    const sessionSearchBtn = document.getElementById("sessionSearchBtn");
+    const sessionPreviewBtn = document.getElementById("sessionPreviewBtn");
+    const sessionSearchResults = document.getElementById("sessionSearchResults");
+    const selectedSessionList = document.getElementById("selectedSessionList");
+    const messagePicker = document.getElementById("messagePicker");
+    const selectAllMessagesBtn = document.getElementById("selectAllMessagesBtn");
+    const clearMessagesBtn = document.getElementById("clearMessagesBtn");
+    const supplementInput = document.getElementById("supplementInput");
+    const taskTemplateInput = document.getElementById("taskTemplateInput");
     const runBtn = document.getElementById("runBtn");
     const demoBtn = document.getElementById("demoBtn");
     const refreshBtn = document.getElementById("refreshBtn");
     const desktopSyncBtn = document.getElementById("desktopSyncBtn");
-    const mobileSyncBtn = document.getElementById("mobileSyncBtn");
-    const broadcastBtn = document.getElementById("broadcastBtn");
-    const openMobileBtn = document.getElementById("openMobileBtn");
+    const confirmAcceptanceBtn = document.getElementById("confirmAcceptanceBtn");
     const statusText = document.getElementById("statusText");
     const skillList = document.getElementById("skillList");
     const larkStatusCard = document.getElementById("larkStatusCard");
@@ -818,22 +1001,26 @@
     const desktopOverview = document.getElementById("desktopOverview");
     const stepList = document.getElementById("stepList");
     const briefGrid = document.getElementById("briefGrid");
-    const deviceMiniList = document.getElementById("deviceMiniList");
+    const eventScopeSelect = document.getElementById("eventScopeSelect");
     const artifactStack = document.getElementById("artifactStack");
-    const mobileBadge = document.getElementById("mobileBadge");
-    const mobileProgressTitle = document.getElementById("mobileProgressTitle");
-    const mobileProgressFill = document.getElementById("mobileProgressFill");
-    const mobileFocusText = document.getElementById("mobileFocusText");
-    const mobileFeed = document.getElementById("mobileFeed");
-    const mobileActions = document.getElementById("mobileActions");
-    const syncSummaryText = document.getElementById("syncSummaryText");
+    const downloadAllArtifactsBtn = document.getElementById("downloadAllArtifactsBtn");
+    const acceptanceGrid = document.getElementById("acceptanceGrid");
+    const activeEventList = document.getElementById("activeEventList");
     const eventList = document.getElementById("eventList");
-    const slideEmpty = document.getElementById("slideEmpty");
-    const slidesFrame = document.getElementById("slidesFrame");
     const rawJson = document.getElementById("rawJson");
 
     let currentJobId = new URLSearchParams(window.location.search).get("job_id") || "";
     let pollingTimer = null;
+    let sessionSearchCache = [];
+    let selectedSessionSources = [];
+    let currentMessageSessionKey = "";
+    let latestLarkStatus = null;
+    taskTemplateInput.addEventListener("change", () => {
+      const template = taskTemplateInput.value.trim();
+      if (!template) return;
+      const current = instructionInput.value.trim();
+      instructionInput.value = current ? `${current}\n\n[任务模板建议]\n${template}` : template;
+    });
 
     demoBtn.addEventListener("click", () => {
       instructionInput.value = "请基于这段 IM 对话输出一份项目汇报文档和演示稿，并把状态同步到桌面端和移动端。";
@@ -841,18 +1028,38 @@
 工程同学：主流程先从 IM / 飞书入口进来，再交给 Agent Harness 和 Planner。
 设计同学：最终既要有文档，也要有 Slide，还要支持移动端和桌面端状态一致。
 运营同学：交付时最好能直接给出报告、预览链接和 PPT 文件。`;
+      sessionSearchInput.value = "比赛";
+      selectedSessionSources = [];
+      renderSelectedSessionSources();
       statusText.textContent = "已填充示例内容。";
     });
 
     refreshBtn.addEventListener("click", async () => {
       await loadSkills();
+      await loadActiveEvents();
+      if (!currentJobId) {
+        await restoreLatestJob();
+      }
       if (currentJobId) {
         emptyState.classList.add("hidden");
         resultShell.classList.remove("hidden");
-        openMobileBtn.classList.remove("hidden");
-        openMobileBtn.href = `/mobile?job_id=${encodeURIComponent(currentJobId)}`;
         await pollJob();
       }
+    });
+
+    sessionSearchBtn.addEventListener("click", searchSessionSources);
+    sessionPreviewBtn.addEventListener("click", hydrateChatInputFromSelectedSessions);
+    selectAllMessagesBtn.addEventListener("click", () => {
+      toggleCurrentSessionMessages(true);
+    });
+    clearMessagesBtn.addEventListener("click", () => {
+      toggleCurrentSessionMessages(false);
+    });
+    supplementInput.addEventListener("input", () => {
+      syncChatInputFromSelectedSessions();
+    });
+    eventScopeSelect.addEventListener("change", async () => {
+      await loadActiveEvents();
     });
 
     runBtn.addEventListener("click", async () => {
@@ -866,18 +1073,20 @@
       statusText.textContent = "正在创建 Agent 任务...";
 
       try {
+        await hydrateChatInputFromSelectedSessions();
+        const device = currentDeviceIdentity();
         const response = await fetch("/api/jobs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            source: sourceInput.value,
             instruction,
             chat_text: chatInput.value.trim(),
+            session_sources: parseSessionSources(),
             preferred_output: outputInput.value,
             client_id: "web-dashboard",
-            device_id: `${platformInput.value}-console`,
-            device_label: platformInput.value === "desktop" ? "Desktop Console" : "Mobile Console",
-            platform: platformInput.value
+            device_id: device.device_id,
+            device_label: device.device_label,
+            platform: device.platform
           })
         });
         const data = await response.json();
@@ -886,12 +1095,11 @@
         }
 
         currentJobId = data.job_id;
+        syncJobIdToUrl(currentJobId);
         emptyState.classList.add("hidden");
         resultShell.classList.remove("hidden");
-        openMobileBtn.classList.remove("hidden");
-        openMobileBtn.href = `/mobile?job_id=${encodeURIComponent(currentJobId)}`;
         statusText.textContent = `任务已启动：${data.job_id}`;
-        await seedDemoDevices();
+        await syncCurrentDevice("任务已从当前设备发起。");
         startPolling();
       } catch (error) {
         console.error(error);
@@ -901,19 +1109,36 @@
       }
     });
 
-    desktopSyncBtn.addEventListener("click", () => pushDeviceHeartbeat("desktop", "Desktop Control", "control-room", "桌面端接管主控，负责全量查看与交付。"));
-    mobileSyncBtn.addEventListener("click", () => pushDeviceHeartbeat("mobile", "Mobile Relay", "relay-view", "移动端收到同步提醒，负责跟进和接力。"));
-    broadcastBtn.addEventListener("click", async () => {
-      await Promise.all([
-        pushDeviceHeartbeat("desktop", "Desktop Broadcast", "delivery-board", "桌面端已广播最新交付状态。"),
-        pushDeviceHeartbeat("mobile", "Mobile Broadcast", "push-feed", "移动端已收到最新广播提醒。")
-      ]);
-      statusText.textContent = "已完成双端同步广播。";
+    desktopSyncBtn.addEventListener("click", () => pushCurrentDeviceHeartbeat("当前设备正在主控台查看任务。"));
+
+    confirmAcceptanceBtn.addEventListener("click", async () => {
+      if (!currentJobId) return;
+      const device = currentDeviceIdentity();
+      await fetch(`/api/jobs/${currentJobId}/acceptance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirmed: true,
+          confirmed_by: device.platform,
+          note: `${device.device_label} 确认本次比赛验收标准。`
+        })
+      });
+      statusText.textContent = `${device.device_label} 已确认验收标准。`;
+      await pollJob();
     });
     larkSearchBtn.addEventListener("click", async () => {
       larkSearchResult.innerHTML = "<strong>飞书在线结果</strong><p>正在调用真实飞书用户查询...</p>";
       try {
-        const response = await fetch("/api/lark/search-users?q=" + encodeURIComponent("庞天傲"));
+        const fallbackName = extractDisplayName(latestLarkStatus?.linked_user || "");
+        const query = fallbackName;
+        if (!query) {
+          larkSearchResult.innerHTML = `
+            <strong>飞书在线结果 <span class="tag warning">missing_query</span></strong>
+            <p>当前未检测到已绑定用户。请先在终端完成 lark-cli 登录绑定后再查询。</p>
+          `;
+          return;
+        }
+        const response = await fetch("/api/lark/search-users?q=" + encodeURIComponent(query));
         const data = await response.json();
         if (data.ok) {
           const users = (data.data && data.data.users) || [];
@@ -921,6 +1146,7 @@
           larkSearchResult.innerHTML = `
             <strong>飞书在线结果 <span class="tag completed">online</span></strong>
             <p>本次查询已命中真实飞书用户目录。</p>
+            <p style="margin-top:8px;">查询词（来自当前登录用户）：${escapeHtml(query)}</p>
             <p style="margin-top:8px;">身份：${escapeHtml(data.identity || "unknown")}</p>
             <p style="margin-top:8px;">命中用户：${escapeHtml(first ? first.localized_name : "无")} ${first ? `(${escapeHtml(first.open_id || "")})` : ""}</p>
           `;
@@ -928,6 +1154,7 @@
           const message = data.error?.message || data.note || data.raw || "查询未成功。";
           larkSearchResult.innerHTML = `
             <strong>飞书在线结果 <span class="tag warning">limited</span></strong>
+            <p>查询词（来自当前登录用户）：${escapeHtml(query)}</p>
             <p>${escapeHtml(message)}</p>
             <p style="margin-top:8px;">这通常表示当前运行时没有直接持有 user token，但 lark-cli 在宿主环境中已完成配置。</p>
           `;
@@ -959,9 +1186,213 @@
       });
     }
 
+    async function searchSessionSources() {
+      const query = sessionSearchInput.value.trim();
+      sessionSearchResults.innerHTML = '<div class="empty">正在查询飞书群聊和单聊...</div>';
+      try {
+        const response = await fetch("/api/lark/session-sources?q=" + encodeURIComponent(query));
+        const data = await response.json();
+        sessionSearchCache = Array.isArray(data) ? data : [];
+        renderSessionSearchResults();
+      } catch (error) {
+        console.error(error);
+        sessionSearchResults.innerHTML = `<div class="empty">会话查询失败：${escapeHtml(error.message || "unknown")}</div>`;
+      }
+    }
+
+    function renderSessionSearchResults() {
+      sessionSearchResults.innerHTML = "";
+      if (!sessionSearchCache.length) {
+        sessionSearchResults.innerHTML = '<div class="empty">没有找到匹配的飞书会话。</div>';
+        return;
+      }
+
+      sessionSearchCache.forEach((item) => {
+        const key = `${item.kind}:${item.source_id}`;
+        const selected = selectedSessionSources.some((source) => `${source.kind}:${source.source_id}` === key);
+        const node = document.createElement("article");
+        node.className = `source-card ${selected ? "active" : ""}`;
+        node.innerHTML = `
+          <strong>${escapeHtml(item.label)} <span class="tag ${item.kind === "chat" ? "running" : "completed"}">${escapeHtml(item.kind === "chat" ? "群聊" : "单聊")}</span></strong>
+          <p>${escapeHtml(item.source_id)}</p>
+          <p style="margin-top:8px;">${escapeHtml(item.note || "飞书会话")}</p>
+          <button class="secondary-btn" type="button">${selected ? "取消选择" : "选择会话"}</button>
+        `;
+        node.querySelector("button").addEventListener("click", async () => {
+          await toggleSessionSource(item);
+        });
+        sessionSearchResults.appendChild(node);
+      });
+    }
+
+    async function toggleSessionSource(item) {
+      const key = `${item.kind}:${item.source_id}`;
+      const index = selectedSessionSources.findIndex((source) => `${source.kind}:${source.source_id}` === key);
+      if (index >= 0) {
+        selectedSessionSources.splice(index, 1);
+        syncChatInputFromSelectedSessions();
+        statusText.textContent = "";
+      } else {
+        selectedSessionSources.push({ ...item, transcript: "", message_count: 0 });
+        try {
+          await hydrateChatInputFromSelectedSessions();
+        } catch (error) {
+          console.error(error);
+          statusText.textContent = `读取会话失败：${error.message || "unknown"}`;
+        }
+      }
+      renderSessionSearchResults();
+      renderSelectedSessionSources();
+    }
+
+    function renderSelectedSessionSources() {
+      selectedSessionList.innerHTML = "";
+      if (!selectedSessionSources.length) {
+        selectedSessionList.innerHTML = '<div class="empty">还没有选中的飞书会话。</div>';
+        currentMessageSessionKey = "";
+        renderMessagePicker();
+        return;
+      }
+
+      const firstKey = `${selectedSessionSources[0].kind}:${selectedSessionSources[0].source_id}`;
+      if (!currentMessageSessionKey) {
+        currentMessageSessionKey = firstKey;
+      }
+
+      selectedSessionSources.forEach((item) => {
+        const itemKey = `${item.kind}:${item.source_id}`;
+        const node = document.createElement("article");
+        node.className = `source-card active ${itemKey === currentMessageSessionKey ? "selected-focus" : ""}`;
+        node.innerHTML = `
+          <strong>${escapeHtml(item.label)} <span class="tag ${item.kind === "chat" ? "running" : "completed"}">${escapeHtml(item.kind === "chat" ? "群聊" : "单聊")}</span></strong>
+          <p>${escapeHtml(item.source_id)}</p>
+          <p style="margin-top:8px;">${escapeHtml(item.messages?.length ? `已读取 ${item.messages.length} 条消息` : "尚未读取 transcript")}</p>
+        `;
+        node.addEventListener("click", () => {
+          currentMessageSessionKey = itemKey;
+          renderSelectedSessionSources();
+        });
+        selectedSessionList.appendChild(node);
+      });
+      renderMessagePicker();
+    }
+
+    async function hydrateChatInputFromSelectedSessions() {
+      if (!selectedSessionSources.length) {
+        chatInput.value = "";
+        return;
+      }
+      statusText.textContent = "正在从飞书读取已选会话内容...";
+      const hydrated = [];
+      for (const item of selectedSessionSources) {
+        const response = await fetch("/api/lark/session-sources/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind: item.kind,
+            source_id: item.source_id,
+            label: item.label,
+            message_limit: 20
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || `无法读取会话 ${item.label}`);
+        }
+        hydrated.push({
+          ...item,
+          transcript: data.chat_text,
+          message_count: data.message_count || 0,
+          messages: (data.chat_text || "")
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((line, idx) => ({
+              id: `${item.kind}:${item.source_id}:${idx}`,
+              text: line,
+              checked: true
+            }))
+        });
+      }
+      selectedSessionSources = hydrated;
+      renderSelectedSessionSources();
+      syncChatInputFromSelectedSessions();
+      statusText.textContent = "已读取所选飞书会话内容。";
+    }
+
+    function syncChatInputFromSelectedSessions() {
+      const transcriptBlocks = selectedSessionSources
+        .map((item) => {
+          const selectedLines = (item.messages || []).filter((msg) => msg.checked).map((msg) => msg.text);
+          if (!selectedLines.length) return "";
+          return `[${item.label}]\n${selectedLines.join("\n")}`;
+        })
+        .filter(Boolean);
+      const supplement = supplementInput.value.trim();
+      if (supplement) {
+        transcriptBlocks.push(`[用户补充]\n${supplement}`);
+      }
+      chatInput.value = transcriptBlocks.join("\n\n");
+    }
+
+    function renderMessagePicker() {
+      messagePicker.innerHTML = "";
+      if (!selectedSessionSources.length) {
+        messagePicker.innerHTML = '<div class="empty">选择会话并读取后，这里会展示可勾选的聊天消息。</div>';
+        return;
+      }
+
+      const hasMessages = selectedSessionSources.some((item) => (item.messages || []).length);
+      if (!hasMessages) {
+        messagePicker.innerHTML = '<div class="empty">当前会话还没有可勾选消息，请先读取会话内容。</div>';
+        return;
+      }
+
+      const target = selectedSessionSources.find((item) => `${item.kind}:${item.source_id}` === currentMessageSessionKey)
+        || selectedSessionSources[0];
+      if (!target || !(target.messages || []).length) {
+        messagePicker.innerHTML = '<div class="empty">当前会话没有消息可供选择。</div>';
+        return;
+      }
+
+      const group = document.createElement("div");
+      group.className = "message-group";
+      const title = document.createElement("strong");
+      title.textContent = `${target.label} (${target.messages.length}条)`;
+      group.appendChild(title);
+
+      target.messages.forEach((msg) => {
+        const line = document.createElement("label");
+        line.className = "message-item";
+        line.innerHTML = `
+          <input type="checkbox" ${msg.checked ? "checked" : ""}>
+          <span>${escapeHtml(msg.text)}</span>
+        `;
+        line.querySelector("input").addEventListener("change", (event) => {
+          msg.checked = Boolean(event.target.checked);
+          syncChatInputFromSelectedSessions();
+        });
+        group.appendChild(line);
+      });
+      messagePicker.appendChild(group);
+    }
+
+    function toggleCurrentSessionMessages(checked) {
+      if (!selectedSessionSources.length) return;
+      const target = selectedSessionSources.find((item) => `${item.kind}:${item.source_id}` === currentMessageSessionKey)
+        || selectedSessionSources[0];
+      if (!target || !(target.messages || []).length) return;
+      target.messages.forEach((msg) => {
+        msg.checked = checked;
+      });
+      renderMessagePicker();
+      syncChatInputFromSelectedSessions();
+    }
+
     async function loadLarkStatus() {
       const response = await fetch("/api/lark/status");
       const data = await response.json();
+      latestLarkStatus = data;
       const stateClass = data.authenticated ? "completed" : data.user_linked ? "running" : data.configured ? "queued" : data.installed ? "queued" : "failed";
       const scopeHints = (data.scope_hints || [])
         .map((hint) => `<p style="margin-top:8px;">${escapeHtml(hint)}</p>`)
@@ -978,12 +1409,23 @@
       `;
     }
 
+    function extractDisplayName(linkedUserText) {
+      const cleaned = String(linkedUserText || "").trim();
+      if (!cleaned) return "";
+      const matched = cleaned.match(/^(.+?)\s*\(ou_/);
+      if (matched && matched[1]) return matched[1].trim();
+      return cleaned;
+    }
+
     function startPolling() {
       if (pollingTimer) {
         clearInterval(pollingTimer);
       }
       pollJob();
-      pollingTimer = setInterval(pollJob, 2000);
+      pollingTimer = setInterval(async () => {
+        await pollJob();
+        await loadActiveEvents();
+      }, 2000);
     }
 
     async function pollJob() {
@@ -997,12 +1439,41 @@
       }
     }
 
-    async function seedDemoDevices() {
+    async function restoreLatestJob() {
+      const response = await fetch("/api/jobs");
+      const jobs = await response.json();
+      if (!Array.isArray(jobs) || !jobs.length) {
+        renderEmpty();
+        return;
+      }
+      const running = jobs.find((job) => job.status === "running" || job.status === "queued");
+      const fallback = jobs[0];
+      currentJobId = (running || fallback).job_id;
+      syncJobIdToUrl(currentJobId);
+      emptyState.classList.add("hidden");
+      resultShell.classList.remove("hidden");
+    }
+
+    async function loadActiveEvents() {
+      const response = await fetch(`/api/events?scope=${encodeURIComponent(eventScopeSelect.value)}&limit=40`);
+      const events = await response.json();
+      renderActiveEvents(Array.isArray(events) ? events : []);
+    }
+
+    async function syncCurrentDevice(note = "") {
       if (!currentJobId) return;
-      await Promise.all([
-        pushDeviceHeartbeat("desktop", "Desktop Stage", "planning-board", "桌面端展示全量计划与交付。"),
-        pushDeviceHeartbeat("mobile", "Mobile Stage", "mobile-tracker", "移动端展示任务提醒与接力状态。")
-      ]);
+      const device = currentDeviceIdentity();
+      await fetch(`/api/jobs/${currentJobId}/devices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          device_id: device.device_id,
+          device_label: device.device_label,
+          platform: device.platform,
+          current_view: "dashboard",
+          note
+        })
+      });
     }
 
     async function pushDeviceHeartbeat(platform, deviceLabel, currentView, note) {
@@ -1022,6 +1493,11 @@
       await pollJob();
     }
 
+    async function pushCurrentDeviceHeartbeat(note) {
+      const device = currentDeviceIdentity();
+      await pushDeviceHeartbeat(device.platform, device.device_label, "dashboard", note);
+    }
+
     function renderJob(job) {
       rawJson.textContent = JSON.stringify(job, null, 2);
       statusText.textContent = `任务 ${job.job_id} 当前状态：${job.status}`;
@@ -1029,23 +1505,18 @@
       desktopStatusTag.className = `tag ${statusClass(job.status)}`;
 
       renderJobStats(job);
-      openMobileBtn.classList.remove("hidden");
-      openMobileBtn.href = `/mobile?job_id=${encodeURIComponent(job.job_id)}`;
       renderOverview(job);
       renderSteps(job);
       renderBrief(job);
-      renderDevices(job);
       renderArtifacts(job);
+      renderAcceptance(job);
       renderEvents(job);
-      renderMobile(job);
-      renderPreview(job);
     }
 
     function renderJobStats(job) {
       jobStats.innerHTML = "";
       [
         `状态 ${statusLabel(job.status)}`,
-        `设备 ${job.sync_state.active_devices}`,
         `步骤 ${job.steps.length}`,
         `产物 ${job.artifacts.length}`
       ].forEach((text) => {
@@ -1060,11 +1531,9 @@
       const completedSteps = job.steps.filter((step) => step.status === "completed").length;
       const latestEvent = job.events.length ? job.events[job.events.length - 1].message : "等待任务启动";
       const topic = job.brief?.topic || "待生成";
-      const syncText = `${job.sync_state.active_devices} 端在线`;
       const cards = [
         { title: "任务主题", value: topic, note: "当前 Agent 交付对象" },
         { title: "完成步骤", value: `${completedSteps}/${job.steps.length || 0}`, note: "主流程推进度" },
-        { title: "多端在线", value: syncText, note: "桌面端与移动端共享状态" },
         { title: "最新事件", value: latestEvent, note: "事件流最后一条消息" }
       ];
 
@@ -1115,23 +1584,16 @@
       });
     }
 
-    function renderDevices(job) {
-      deviceMiniList.innerHTML = "";
-      job.devices.forEach((device) => {
-        const node = document.createElement("article");
-        node.className = "device-mini-card";
-        node.innerHTML = `
-          <strong>${escapeHtml(device.device_label)} <span class="tag completed">${escapeHtml(device.platform === "desktop" ? "桌面端" : "移动端")}</span></strong>
-          <p>视图：${escapeHtml(device.current_view)}</p>
-          <p>备注：${escapeHtml(device.note || "无")}</p>
-          <p>最后在线：${escapeHtml(device.last_seen_at)}</p>
-        `;
-        deviceMiniList.appendChild(node);
-      });
-    }
-
     function renderArtifacts(job) {
       artifactStack.innerHTML = "";
+      if (job.artifacts.length) {
+        downloadAllArtifactsBtn.classList.remove("hidden");
+        downloadAllArtifactsBtn.href = `/api/jobs/${encodeURIComponent(job.job_id)}/artifacts.zip`;
+      } else {
+        downloadAllArtifactsBtn.classList.add("hidden");
+        downloadAllArtifactsBtn.href = "#";
+      }
+
       job.artifacts.forEach((artifact) => {
         const node = document.createElement("article");
         node.className = "artifact-card";
@@ -1139,17 +1601,48 @@
           <div>
             <strong>${escapeHtml(artifact.label)}</strong>
             <p>${escapeHtml(artifact.kind)}</p>
+            <p class="artifact-path">${escapeHtml(artifact.path || "无本地路径")}</p>
           </div>
         `;
-        const link = document.createElement("a");
-        link.className = "link-btn";
-        link.href = artifact.url;
-        link.target = "_blank";
-        link.rel = "noopener";
-        link.textContent = "打开";
-        node.appendChild(link);
+        const actions = document.createElement("div");
+        actions.className = "artifact-actions";
+
+        const openLink = document.createElement("a");
+        openLink.className = "link-btn";
+        openLink.href = artifact.url;
+        openLink.target = "_blank";
+        openLink.rel = "noopener";
+        openLink.textContent = "打开";
+        actions.appendChild(openLink);
+
+        const downloadLink = document.createElement("a");
+        downloadLink.className = "link-btn";
+        downloadLink.href = buildDownloadUrl(artifact.url);
+        downloadLink.textContent = "下载";
+        downloadLink.setAttribute("download", "");
+        actions.appendChild(downloadLink);
+
+        node.appendChild(actions);
         artifactStack.appendChild(node);
       });
+    }
+
+    function renderAcceptance(job) {
+      acceptanceGrid.innerHTML = "";
+      const acceptance = job.acceptance || {};
+      (acceptance.criteria || []).forEach((criterion) => {
+        const node = document.createElement("article");
+        node.className = "acceptance-card";
+        node.innerHTML = `<strong>验收项</strong><p>${escapeHtml(criterion)}</p>`;
+        acceptanceGrid.appendChild(node);
+      });
+      const summary = document.createElement("article");
+      summary.className = "acceptance-card";
+      summary.innerHTML = `
+        <strong>当前状态 <span class="tag ${statusClass(acceptance.status || "pending")}">${escapeHtml(acceptance.status || "pending")}</span></strong>
+        <p>${escapeHtml(acceptance.result_summary || acceptance.note || "等待验收。")}</p>
+      `;
+      acceptanceGrid.appendChild(summary);
     }
 
     function renderEvents(job) {
@@ -1168,85 +1661,10 @@
       });
     }
 
-    function renderMobile(job) {
-      const completedSteps = job.steps.filter((step) => step.status === "completed").length;
-      const progress = job.steps.length ? Math.round((completedSteps / job.steps.length) * 100) : 0;
-      const lastEvent = job.events.length ? job.events[job.events.length - 1] : null;
-      const activeStep = currentActiveStep(job.steps);
-      const mobileDevices = job.devices.filter((device) => device.platform === "mobile");
-
-      mobileBadge.textContent = mobileDevices.length ? `已同步 ${mobileDevices.length} 台` : "等待接入";
-      mobileProgressTitle.textContent = activeStep ? activeStep.name : "等待 Agent 任务";
-      mobileProgressFill.style.width = `${progress}%`;
-      mobileFocusText.textContent = activeStep
-        ? `${activeStep.name}：${activeStep.output_summary || activeStep.description}`
-        : "移动端将展示当前阶段、最新提醒和下一步动作。";
-      syncSummaryText.textContent = `当前共有 ${job.sync_state.active_devices} 台设备在线，最新同步事件：${job.sync_state.last_event || "等待广播"}`;
-
-      mobileFeed.innerHTML = "";
-      const feedEvents = job.events.slice(-3).reverse();
-      feedEvents.forEach((event) => {
-        const node = document.createElement("article");
-        node.className = "mobile-card";
-        node.innerHTML = `
-          <strong>${escapeHtml(event.phase)}</strong>
-          <p>${escapeHtml(event.message)}</p>
-        `;
-        mobileFeed.appendChild(node);
-      });
-
-      mobileActions.innerHTML = "";
-      const actions = deriveMobileActions(job);
-      actions.forEach((action) => {
-        const li = document.createElement("li");
-        li.textContent = action;
-        mobileActions.appendChild(li);
-      });
-
-      if (!actions.length) {
-        const li = document.createElement("li");
-        li.textContent = "等待下一步任务。";
-        mobileActions.appendChild(li);
-      }
-    }
-
-    function renderPreview(job) {
-      const previewArtifact = job.artifacts.find((artifact) => artifact.kind === "slides_preview");
-      if (previewArtifact) {
-        slideEmpty.classList.add("hidden");
-        slidesFrame.classList.remove("hidden");
-        slidesFrame.src = previewArtifact.url;
-      }
-    }
-
     function currentActiveStep(steps) {
       return steps.find((step) => step.status === "running")
         || [...steps].reverse().find((step) => step.status === "completed")
         || steps[0];
-    }
-
-    function deriveMobileActions(job) {
-      if (!job.brief) {
-        return ["等待 Agent 生成任务简报。"];
-      }
-
-      const pending = job.steps.filter((step) => step.status !== "completed");
-      const actions = [];
-      if (pending.length) {
-        actions.push(`继续关注阶段：${pending[0].name}`);
-      }
-
-      const actionItems = (job.brief.action_items || []).slice(0, 2);
-      actionItems.forEach((item) => {
-        actions.push(`${item.task}（负责人：${item.owner || "待定"}）`);
-      });
-
-      if (!job.artifacts.some((artifact) => artifact.kind === "slides_preview")) {
-        actions.push("等待 Slide 预览生成后进行移动端确认。");
-      } else {
-        actions.push("可通知团队查看最新 Slide 预览。");
-      }
-      return actions.slice(0, 4);
     }
 
     function setBusy(loading) {
@@ -1254,9 +1672,32 @@
       runBtn.style.opacity = loading ? "0.7" : "1";
     }
 
+    function parseSessionSources() {
+      const sessionPayload = selectedSessionSources.map((item) => ({
+        kind: item.kind,
+        source_id: item.source_id,
+        label: item.label,
+        transcript: (item.messages || [])
+          .filter((msg) => msg.checked)
+          .map((msg) => msg.text)
+          .join("\n")
+      }));
+      const supplement = supplementInput.value.trim();
+      if (supplement) {
+        sessionPayload.push({
+          kind: "manual",
+          source_id: "manual-supplement",
+          label: "用户补充",
+          transcript: supplement
+        });
+      }
+      return sessionPayload;
+    }
+
     function statusClass(status) {
-      if (status === "completed") return "completed";
-      if (status === "running") return "running";
+      if (status === "completed" || status === "passed") return "completed";
+      if (status === "confirmed" || status === "running") return "running";
+      if (status === "draft" || status === "pending") return "queued";
       if (status === "failed") return "failed";
       if (status === "warning") return "warning";
       return "queued";
@@ -1264,11 +1705,14 @@
 
     function statusLabel(status) {
       if (status === "completed") return "已完成";
+      if (status === "passed") return "已通过";
+      if (status === "confirmed") return "已确认";
+      if (status === "draft") return "草稿";
       if (status === "running") return "执行中";
       if (status === "failed") return "失败";
       if (status === "warning") return "警告";
       if (status === "queued") return "排队中";
-      if (status === "pending") return "待执行";
+      if (status === "pending") return "待确认";
       return status;
     }
 
@@ -1281,12 +1725,95 @@
         .replaceAll("'", "&#039;");
     }
 
+    function buildDownloadUrl(url) {
+      if (!url || !url.startsWith("/artifacts/")) {
+        return url || "#";
+      }
+      const separator = url.includes("?") ? "&" : "?";
+      return `${url}${separator}download=1`;
+    }
+
+    function currentDeviceIdentity() {
+      const mobile = window.matchMedia("(max-width: 760px)").matches;
+      return mobile
+        ? { device_id: "mobile-browser", device_label: "Mobile Browser", platform: "mobile" }
+        : { device_id: "desktop-browser", device_label: "Desktop Browser", platform: "desktop" };
+    }
+
+    function syncJobIdToUrl(jobId) {
+      const url = new URL(window.location.href);
+      if (jobId) {
+        url.searchParams.set("job_id", jobId);
+      } else {
+        url.searchParams.delete("job_id");
+      }
+      history.replaceState(null, "", url.toString());
+    }
+
+    function renderActiveEvents(events) {
+      activeEventList.innerHTML = "";
+      if (!events.length) {
+        const emptyLabel = eventScopeSelect.value === "completed"
+          ? "当前没有已完成任务事件。"
+          : eventScopeSelect.value === "latest"
+            ? "当前没有可展示的最新事件。"
+            : "当前没有运行中的任务事件。";
+        activeEventList.innerHTML = `<div class="empty">${emptyLabel}</div>`;
+        return;
+      }
+      events.forEach((event) => {
+        const levelClass = event.level === "error" ? "failed" : event.level === "warning" ? "warning" : "completed";
+        const node = document.createElement("article");
+        node.className = "event-card";
+        node.innerHTML = `
+          <strong>${escapeHtml(event.topic || event.instruction || event.job_id)} <span class="tag ${levelClass}">${escapeHtml(event.status)}</span></strong>
+          <p>${escapeHtml(event.job_id)} · ${escapeHtml(event.phase)} · ${escapeHtml(event.timestamp)}</p>
+          <p style="margin-top:8px;">${escapeHtml(event.message)}</p>
+          <p style="margin-top:8px; color:#1f4fd3;">点击切换到该任务</p>
+        `;
+        node.style.cursor = "pointer";
+        if (event.job_id === currentJobId) {
+          node.style.borderColor = "rgba(37, 99, 235, 0.52)";
+          node.style.boxShadow = "0 0 0 2px rgba(59, 130, 246, 0.18)";
+        }
+        node.title = "点击切换到该事件所属任务";
+        node.addEventListener("click", async () => {
+          currentJobId = event.job_id;
+          syncJobIdToUrl(currentJobId);
+          emptyState.classList.add("hidden");
+          resultShell.classList.remove("hidden");
+          statusText.textContent = `已切换到任务：${event.job_id}`;
+          await syncCurrentDevice("当前设备通过事件总览切换到该任务。");
+          await pollJob();
+          await loadActiveEvents();
+          if (!pollingTimer) {
+            startPolling();
+          }
+        });
+        activeEventList.appendChild(node);
+      });
+    }
+
+    function renderEmpty() {
+      currentJobId = "";
+      syncJobIdToUrl("");
+      emptyState.classList.remove("hidden");
+      resultShell.classList.add("hidden");
+      statusText.textContent = "当前没有可恢复的任务。";
+      rawJson.textContent = "";
+      activeEventList.innerHTML = '<div class="empty">当前没有可展示的任务事件。</div>';
+    }
+
     loadSkills().then(async () => {
+      await searchSessionSources();
+      await loadActiveEvents();
+      if (!currentJobId) {
+        await restoreLatestJob();
+      }
       if (currentJobId) {
+        await syncCurrentDevice("当前设备已接入任务主控台。");
         emptyState.classList.add("hidden");
         resultShell.classList.remove("hidden");
-        openMobileBtn.classList.remove("hidden");
-        openMobileBtn.href = `/mobile?job_id=${encodeURIComponent(currentJobId)}`;
         await pollJob();
         startPolling();
       }

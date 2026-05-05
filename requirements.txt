@@ -4,3 +4,4 @@ openai
 python-dotenv
 python-pptx
 pydantic
+pymysql

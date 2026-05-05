@@ -179,6 +179,53 @@
       border: 1px solid rgba(59, 130, 246, 0.18);
     }
 
+    input,
+    textarea,
+    select {
+      width: 100%;
+      border: 1px solid rgba(59, 130, 246, 0.16);
+      border-radius: 16px;
+      padding: 11px 12px;
+      font: inherit;
+      color: var(--ink);
+      background: rgba(248, 250, 252, 0.96);
+      outline: none;
+    }
+
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .scenario-pills {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .scenario-pills label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 14px;
+      padding: 9px;
+      background: rgba(219, 234, 254, 0.56);
+      color: var(--ink);
+    }
+
+    .scenario-pills input {
+      width: auto;
+    }
+
     .card,
     .feed-item {
       border-radius: 18px;
@@ -286,8 +333,24 @@
       <div class="actions">
         <button id="attachBtn" class="primary-btn" type="button">同步到当前任务</button>
         <button id="refreshBtn" class="secondary-btn" type="button">刷新</button>
+        <button id="createBtn" class="secondary-btn" type="button">移动端发起</button>
+        <button id="acceptBtn" class="secondary-btn" type="button">确认验收</button>
         <a id="desktopLink" class="secondary-btn" href="/" target="_blank" rel="noopener">打开桌面主控页</a>
       </div>
+
+      <section class="card">
+        <strong>移动端任务启动台</strong>
+        <label>
+          指令
+          <input id="mobileInstructionInput" value="请从移动端发起一个 IM 到文档和演示稿的组合任务。">
+        </label>
+        <label style="margin-top:10px;">
+          对话内容
+          <textarea id="mobileChatInput">移动端用户：补充一个现场需求，需要同步到桌面端继续处理。
+项目群：请生成文档、Slide 和最终交付清单。</textarea>
+        </label>
+        <p class="empty" style="margin-top:10px;">场景由后端基于自然语言自动判定。</p>
+      </section>
 
       <section class="kpi-grid" id="kpiGrid">
         <div class="kpi"><span>步骤完成</span><b>0/0</b></div>
@@ -302,6 +365,11 @@
       <section class="card">
         <strong>下一步行动</strong>
         <ul id="actionList" class="list"></ul>
+      </section>
+
+      <section class="card">
+        <strong>验收状态</strong>
+        <p id="acceptanceText">等待任务生成验收标准。</p>
       </section>
 
       <section class="card">
@@ -326,10 +394,15 @@
     const progressFill = document.getElementById("progressFill");
     const attachBtn = document.getElementById("attachBtn");
     const refreshBtn = document.getElementById("refreshBtn");
+    const createBtn = document.getElementById("createBtn");
+    const acceptBtn = document.getElementById("acceptBtn");
     const desktopLink = document.getElementById("desktopLink");
+    const mobileInstructionInput = document.getElementById("mobileInstructionInput");
+    const mobileChatInput = document.getElementById("mobileChatInput");
     const kpiGrid = document.getElementById("kpiGrid");
     const focusText = document.getElementById("focusText");
     const actionList = document.getElementById("actionList");
+    const acceptanceText = document.getElementById("acceptanceText");
     const feedList = document.getElementById("feedList");
     const artifactList = document.getElementById("artifactList");
 
@@ -345,6 +418,42 @@
 
     refreshBtn.addEventListener("click", async () => {
       await ensureJobLoaded();
+    });
+
+    createBtn.addEventListener("click", async () => {
+      const response = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: "im",
+          instruction: mobileInstructionInput.value.trim(),
+          chat_text: mobileChatInput.value.trim(),
+          preferred_output: "both",
+          client_id: "mobile-dashboard",
+          device_id: "mobile-console",
+          device_label: "Mobile Console",
+          platform: "mobile"
+        })
+      });
+      const data = await response.json();
+      currentJobId = data.job_id;
+      history.replaceState(null, "", `/mobile?job_id=${encodeURIComponent(currentJobId)}`);
+      await attachMobileDevice();
+      await pollJob();
+    });
+
+    acceptBtn.addEventListener("click", async () => {
+      if (!currentJobId) return;
+      await fetch(`/api/jobs/${currentJobId}/acceptance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirmed: true,
+          confirmed_by: "mobile",
+          note: "移动端确认本次验收标准。"
+        })
+      });
+      await pollJob();
     });
 
     async function ensureJobLoaded() {
@@ -423,6 +532,7 @@
         : "等待 Agent 任务接入。";
 
       renderActions(job, activeStep);
+      renderAcceptance(job);
       renderFeeds(latestEvents);
       renderArtifacts(job.artifacts);
     }
@@ -490,6 +600,12 @@
         `;
         artifactList.appendChild(link);
       });
+    }
+
+    function renderAcceptance(job) {
+      const acceptance = job.acceptance || {};
+      const criteria = (acceptance.criteria || []).slice(0, 2).join("；");
+      acceptanceText.textContent = `${acceptance.status || "pending"}：${acceptance.result_summary || criteria || "等待任务生成验收标准。"}`;
     }
 
     function renderEmpty() {

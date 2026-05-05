@@ -161,6 +161,7 @@ __marimo__/
 
 # Project outputs
 outputs/
+data/
 .lark-upload-cache/
 lark_sync/
 tools/
@@ -168,3 +169,6 @@ tools/
 # OS files
 .DS_Store
 Thumbs.db
+
+
+**/.vscode
