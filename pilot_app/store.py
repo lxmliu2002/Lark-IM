@@ -29,6 +29,7 @@ from .models import (
     ScenarioId,
     SessionSource,
     StepStatus,
+    TaskConversationEntry,
     SyncState,
     TaskRepairDecision,
     TaskRevisionRecord,
@@ -251,6 +252,14 @@ class MySQLJobStore:
             )
 
         self._mutate(job_id, mutation, "job.event.added")
+
+    def append_conversation_entries(self, job_id: str, entries: list[TaskConversationEntry]) -> JobState:
+        def mutation(job: JobState) -> None:
+            job.conversation.extend(entry.model_copy(deep=True) for entry in entries)
+            job.available_actions = _available_actions(job)
+
+        self._mutate(job_id, mutation, "job.conversation.updated")
+        return self.get_job(job_id)
 
     def update_editable_input(self, job_id: str, update: InputUpdateRequest) -> JobState:
         with self._lock:

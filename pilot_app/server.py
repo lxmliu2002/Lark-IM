@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 
+from .conversation import TaskConversationService
 from .harness import AgentHarness
 from .lark_cli import LarkCLIClient
 from .llm import LLMJsonClient
@@ -18,6 +19,8 @@ from .models import (
     AcceptanceUpdateRequest,
     BotWebhookAccepted,
     BotWebhookRequest,
+    ConversationRequest,
+    ConversationResponse,
     DeviceUpdateRequest,
     JobAccepted,
     JobCreateRequest,
@@ -53,6 +56,7 @@ lark_cli_client = LarkCLIClient(BASE_DIR)
 skill_registry = LarkSkillRegistry(lark_cli_client)
 harness = AgentHarness(store, planner, llm_client, lark_cli_client, skill_registry, OUTPUT_ROOT)
 realtime_hub = RealtimeHub()
+conversation_service = TaskConversationService(store, planner, llm_client, harness)
 
 app = FastAPI(title="Agent Pilot Demo", version="2.0.0")
 
@@ -320,6 +324,14 @@ def update_job_input(job_id: str, req: InputUpdateRequest, background_tasks: Bac
                 }
             },
         )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Job not found.") from exc
+
+
+@app.post("/api/jobs/{job_id}/conversation", response_model=ConversationResponse)
+def talk_to_job(job_id: str, req: ConversationRequest) -> ConversationResponse:
+    try:
+        return conversation_service.handle(job_id, req)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found.") from exc
 

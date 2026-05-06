@@ -61,6 +61,24 @@ class AcceptanceStatus(str, Enum):
     failed = "failed"
 
 
+class ConversationRole(str, Enum):
+    user = "user"
+    assistant = "assistant"
+    system_action = "system_action"
+
+
+class ConversationIntent(str, Enum):
+    status_query = "status_query"
+    artifact_query = "artifact_query"
+    acceptance_query = "acceptance_query"
+    acceptance_confirm = "acceptance_confirm"
+    input_update = "input_update"
+    rerun_step = "rerun_step"
+    summary_request = "summary_request"
+    explain_repair = "explain_repair"
+    unknown = "unknown"
+
+
 class SessionSource(BaseModel):
     kind: str = "chat"
     source_id: str = ""
@@ -215,6 +233,16 @@ class EventRecord(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class TaskConversationEntry(BaseModel):
+    entry_id: str
+    role: ConversationRole
+    message: str
+    timestamp: str
+    action_type: str = ""
+    action_status: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class ActiveEventRecord(BaseModel):
     job_id: str
     status: JobStatus
@@ -254,6 +282,7 @@ class JobState(BaseModel):
     artifacts: list[ArtifactRef] = Field(default_factory=list)
     devices: list[DeviceState] = Field(default_factory=list)
     events: list[EventRecord] = Field(default_factory=list)
+    conversation: list[TaskConversationEntry] = Field(default_factory=list)
     sync_state: SyncState = Field(default_factory=SyncState)
     error_message: str = ""
 
@@ -321,6 +350,26 @@ class InputUpdateRequest(BaseModel):
     device_id: str = "web-console"
     device_label: str = "Web Console"
     platform: Platform = Platform.desktop
+
+
+class ConversationRequest(BaseModel):
+    message: str
+    device_id: str = "web-console"
+    device_label: str = "Web Console"
+    platform: Platform = Platform.desktop
+
+
+class ConversationActionResult(BaseModel):
+    type: str = ""
+    status: str = ""
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class ConversationResponse(BaseModel):
+    reply: str
+    action: ConversationActionResult = Field(default_factory=ConversationActionResult)
+    entries: list[TaskConversationEntry] = Field(default_factory=list)
+    job: JobState | None = None
 
 
 class BotWebhookRequest(BaseModel):

@@ -183,6 +183,27 @@ class AgentHarness:
         self.store.set_brief(job_id, brief)
         return brief
 
+    def _artifact_subject(self, job) -> str:
+        topic = (job.brief.topic if job.brief else "").strip()
+        if topic:
+            return topic
+        instruction = (job.request.instruction or "").strip()
+        if instruction:
+            return instruction[:24].rstrip("，。,.;；:：")
+        return f"当前任务 {job.job_id}"
+
+    def _artifact_label(self, job, kind: str) -> str:
+        subject = self._artifact_subject(job)
+        label_map = {
+            "report_markdown": f"{subject}汇报文档",
+            "slides_preview": f"{subject}演示预览",
+            "pptx": f"{subject}演示稿",
+            "manifest": f"{subject}交付清单",
+            "feishu_doc": f"{subject}在线文档",
+            "feishu_slides": f"{subject}在线演示稿",
+        }
+        return label_map.get(kind, f"{subject}交付物")
+
     def _run_document(self, job_id: str, delivery_dir: Path) -> Path:
         job = self.store.get_job(job_id)
         plan = self._ensure_plan(job_id)
@@ -194,7 +215,7 @@ class AgentHarness:
             job_id,
             ArtifactRef(
                 kind="report_markdown",
-                label="汇报文档草稿",
+                label=self._artifact_label(job, "report_markdown"),
                 path=str(report_path),
                 url=report_url,
                 revision_id=job.current_revision_id,
@@ -222,7 +243,7 @@ class AgentHarness:
             job_id,
             ArtifactRef(
                 kind="slides_preview",
-                label="HTML Slide 预览",
+                label=self._artifact_label(job, "slides_preview"),
                 path=str(slide_deck.index_file),
                 url=f"/artifacts/{job_id}/slides/index.html",
                 revision_id=job.current_revision_id,
@@ -237,7 +258,7 @@ class AgentHarness:
                 job_id,
                 ArtifactRef(
                     kind="pptx",
-                    label="PPT 交付文件",
+                    label=self._artifact_label(job, "pptx"),
                     path=str(ppt_path),
                     url=f"/artifacts/{job_id}/delivery/{ppt_path.name}",
                     revision_id=job.current_revision_id,
@@ -286,7 +307,7 @@ class AgentHarness:
             job_id,
             ArtifactRef(
                 kind="manifest",
-                label="交付清单",
+                label=self._artifact_label(job, "manifest"),
                 path=str(manifest_path),
                 url=f"/artifacts/{job_id}/delivery/manifest.json",
                 revision_id=job.current_revision_id,
@@ -339,7 +360,7 @@ class AgentHarness:
                     job_id,
                     ArtifactRef(
                         kind="feishu_doc",
-                        label="飞书 Doc 交付",
+                        label=self._artifact_label(self.store.get_job(job_id), "feishu_doc"),
                         path=doc_id or doc_url,
                         url=doc_url,
                         revision_id=self.store.get_job(job_id).current_revision_id,
@@ -385,7 +406,7 @@ class AgentHarness:
                     job_id,
                     ArtifactRef(
                         kind="feishu_slides",
-                        label="飞书 Slides 交付",
+                        label=self._artifact_label(self.store.get_job(job_id), "feishu_slides"),
                         path=slide_url,
                         url=slide_url,
                         revision_id=self.store.get_job(job_id).current_revision_id,
@@ -420,14 +441,16 @@ class AgentHarness:
             if result.get("ok"):
                 uploaded_count += 1
                 drive_url = self.lark_cli.first_url(result)
+                current_job = self.store.get_job(job_id)
+                drive_kind = f"feishu_drive_{file_path.stem}"
                 self.store.add_artifact(
                     job_id,
                     ArtifactRef(
-                        kind=f"feishu_drive_{file_path.stem}",
-                        label=f"飞书 Drive：{file_path.name}",
+                        kind=drive_kind,
+                        label=f"{self._artifact_subject(current_job)}云端文件",
                         path=str(file_path),
                         url=drive_url or f"/artifacts/{job_id}/delivery/{file_path.name}",
-                        revision_id=self.store.get_job(job_id).current_revision_id,
+                        revision_id=current_job.current_revision_id,
                     ),
                 )
                 self.store.add_event(job_id, "delivery", f"{file_path.name} 已上传到飞书 Drive。")

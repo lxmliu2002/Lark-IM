@@ -173,4 +173,6 @@ Thumbs.db
 
 **/.vscode
 
-tests
+tests/
+
+docs/

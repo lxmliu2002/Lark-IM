@@ -17,6 +17,12 @@ Return JSON only. Never use markdown code fences.
 Prefer Simplified Chinese when the input is mainly Chinese.
 """.strip()
 
+DEFAULT_TEXT_SYSTEM_PROMPT = """
+You are an AI office copilot speaking directly to a user in a task console.
+Be concise, specific, and action-oriented.
+Prefer Simplified Chinese when the input is mainly Chinese.
+""".strip()
+
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
@@ -44,6 +50,20 @@ class LLMJsonClient:
         content = response.choices[0].message.content or ""
         data: Any = json.loads(_extract_json_block(content))
         return model_cls.model_validate(data)
+
+    def generate_text(self, prompt: str) -> str:
+        if not self.enabled or self._client is None:
+            raise ValueError("LLM client is not configured.")
+
+        response = self._client.chat.completions.create(
+            model=self._model_id,
+            messages=[
+                {"role": "system", "content": DEFAULT_TEXT_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+        )
+        return (response.choices[0].message.content or "").strip()
 
 
 def _extract_json_block(content: str) -> str:

@@ -172,6 +172,11 @@
       align-content: start;
     }
 
+    #activeEventList {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+
     .event-list-scroll::-webkit-scrollbar {
       width: 8px;
     }
@@ -524,6 +529,10 @@
       gap: 12px;
     }
 
+    .kpi-card.latest-event-card {
+      grid-column: span 2;
+    }
+
     .kpi-card {
       background: linear-gradient(135deg, rgba(248, 250, 252, 0.96), rgba(239, 246, 255, 0.98));
     }
@@ -610,7 +619,31 @@
     }
 
     .context-editor-card textarea {
-      min-height: 96px;
+      height: 120px;
+      min-height: 120px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    #contextSnapshotEditor {
+      max-height: 360px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 6px;
+      align-content: start;
+    }
+
+    #contextSnapshotEditor::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    #contextSnapshotEditor::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.42);
+    }
+
+    #contextSnapshotEditor::-webkit-scrollbar-track {
+      background: transparent;
     }
 
     .context-editor-card p {
@@ -699,12 +732,20 @@
         grid-template-columns: 1fr;
       }
 
+      #activeEventList {
+        grid-template-columns: 1fr;
+      }
+
       .floating-panel {
         position: static;
       }
 
       .desktop-overview {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .kpi-card.latest-event-card {
+        grid-column: span 1;
       }
     }
 
@@ -967,12 +1008,37 @@
 
               <section>
                 <div class="desktop-heading">
+                  <h3>任务对话</h3>
+                  <span class="subtle">用自然语言继续查询进度、重跑步骤、补充要求和确认验收</span>
+                </div>
+                <div class="actions" style="margin-bottom:8px;">
+                  <button class="secondary-btn conversation-chip" type="button" data-message="现在进展怎么样">现在进展怎么样</button>
+                  <button class="secondary-btn conversation-chip" type="button" data-message="重新生成 PPT">重新生成 PPT</button>
+                  <button class="secondary-btn conversation-chip" type="button" data-message="总结一下当前结果">总结当前结果</button>
+                  <button class="secondary-btn conversation-chip" type="button" data-message="确认验收">确认验收</button>
+                </div>
+                <div id="conversationList" class="event-list event-list-scroll">
+                  <div class="empty">当前还没有任务对话记录。</div>
+                </div>
+                <label style="margin-top:10px;">
+                  继续输入自然语言
+                  <textarea id="conversationInput" placeholder="例如：现在进展怎么样 / 重新生成 PPT / 总结一下当前结果"></textarea>
+                </label>
+                <div class="actions" style="margin-top:8px;">
+                  <button id="sendConversationBtn" class="primary-btn" type="button">发送任务对话</button>
+                </div>
+              </section>
+
+              <section>
+                <div class="desktop-heading">
                   <h3>计划总览</h3>
                   <span class="subtle">Agent Harness 输出的执行步骤</span>
                 </div>
                 <div id="stepList" class="step-list"></div>
               </section>
+            </div>
 
+            <div class="desktop-column">
               <section>
                 <div class="desktop-heading">
                   <h3>当前任务事件流</h3>
@@ -988,9 +1054,7 @@
                 </div>
                 <div id="briefGrid" class="brief-grid"></div>
               </section>
-            </div>
 
-            <div class="desktop-column">
               <section>
                 <div class="desktop-heading">
                   <h3>交付产物</h3>
@@ -1095,6 +1159,10 @@
     const editableInstructionInput = document.getElementById("editableInstructionInput");
     const editableSupplementInput = document.getElementById("editableSupplementInput");
     const contextSnapshotEditor = document.getElementById("contextSnapshotEditor");
+    const conversationList = document.getElementById("conversationList");
+    const conversationInput = document.getElementById("conversationInput");
+    const sendConversationBtn = document.getElementById("sendConversationBtn");
+    const conversationChips = Array.from(document.querySelectorAll(".conversation-chip"));
 
     let currentJobId = new URLSearchParams(window.location.search).get("job_id") || "";
     let pollingTimer = null;
@@ -1165,6 +1233,20 @@
       if (!eventsSocketConnected) {
         await loadActiveEvents();
       }
+    });
+    sendConversationBtn.addEventListener("click", async () => {
+      await handleConversationSend(conversationInput.value.trim());
+    });
+    conversationInput.addEventListener("keydown", async (event) => {
+      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        await handleConversationSend(conversationInput.value.trim());
+      }
+    });
+    conversationChips.forEach((chip) => {
+      chip.addEventListener("click", async () => {
+        await handleConversationSend(chip.dataset.message || "");
+      });
     });
 
     runBtn.addEventListener("click", async () => {
@@ -1299,6 +1381,45 @@
         statusText.textContent = `保存失败：${error.message || "unknown"}`;
       }
     });
+
+    async function handleConversationSend(message) {
+      if (!currentJobId) {
+        statusText.textContent = "请先启动或恢复一个任务，再使用任务对话。";
+        return;
+      }
+      if (!message) {
+        statusText.textContent = "请输入一条任务对话内容。";
+        return;
+      }
+      const device = currentDeviceIdentity();
+      sendConversationBtn.disabled = true;
+      try {
+        const response = await fetch(`/api/jobs/${currentJobId}/conversation`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message,
+            device_id: device.device_id,
+            device_label: device.device_label,
+            platform: device.platform
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "任务对话发送失败");
+        }
+        conversationInput.value = "";
+        if (data.job) {
+          renderJob(data.job);
+        }
+        statusText.textContent = data.reply || "任务对话已发送。";
+      } catch (error) {
+        console.error(error);
+        statusText.textContent = `任务对话失败：${error.message || "unknown"}`;
+      } finally {
+        sendConversationBtn.disabled = false;
+      }
+    }
 
     editableInstructionInput.addEventListener("input", (event) => {
       if (!inputEditMode || !inputDraft) return;
@@ -1835,6 +1956,7 @@
       renderJobStats(job);
       renderOverview(job);
       renderEditableInput(job);
+      renderConversation(job);
       renderSteps(job);
       renderBrief(job);
       renderArtifacts(job);
@@ -1870,6 +1992,9 @@
       cards.forEach((card) => {
         const node = document.createElement("article");
         node.className = "kpi-card";
+        if (card.title === "最新事件") {
+          node.classList.add("latest-event-card");
+        }
         node.innerHTML = `
           <strong>${escapeHtml(card.title)}</strong>
           <p>${escapeHtml(card.note)}</p>
@@ -2163,6 +2288,28 @@
         `;
         eventList.appendChild(node);
       });
+    }
+
+    function renderConversation(job) {
+      conversationList.innerHTML = "";
+      const entries = job.conversation || [];
+      if (!entries.length) {
+        conversationList.innerHTML = '<div class="empty">当前还没有任务对话记录。</div>';
+        return;
+      }
+      entries.slice(-12).forEach((entry) => {
+        const roleClass = entry.role === "user" ? "running" : entry.role === "system_action" ? "warning" : "completed";
+        const roleLabel = entry.role === "user" ? "用户" : entry.role === "system_action" ? "动作" : "Agent";
+        const node = document.createElement("article");
+        node.className = "event-card";
+        node.innerHTML = `
+          <strong>${escapeHtml(roleLabel)} <span class="tag ${roleClass}">${escapeHtml(entry.action_type || entry.role)}</span></strong>
+          <p>${escapeHtml(entry.message)}</p>
+          <p style="margin-top:8px;">${escapeHtml(entry.timestamp)}</p>
+        `;
+        conversationList.appendChild(node);
+      });
+      conversationList.scrollTop = conversationList.scrollHeight;
     }
 
     function currentActiveStep(steps) {
