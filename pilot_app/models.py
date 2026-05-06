@@ -38,6 +38,12 @@ class DeliveryMode(str, Enum):
     both = "both"
 
 
+class RepairChangeLevel(str, Enum):
+    minor = "minor"
+    partial_replan = "partial_replan"
+    full_replan = "full_replan"
+
+
 class ScenarioId(str, Enum):
     intake = "intake"
     plan = "plan"
@@ -111,11 +117,21 @@ class ContentBrief(BaseModel):
     delivery_notes: list[str] = Field(default_factory=list)
 
 
+class EditableInputState(BaseModel):
+    instruction: str = ""
+    supplement: str = ""
+    context_snapshot: list["SessionSource"] = Field(default_factory=list)
+    version: int = 1
+    updated_at: str = ""
+    updated_by: str = ""
+
+
 class JobCreateRequest(BaseModel):
     source: EntrySource = EntrySource.im
     instruction: str
     chat_text: str = ""
     voice_text: str = ""
+    supplement: str = ""
     preferred_output: DeliveryMode = DeliveryMode.both
     session_sources: list[SessionSource] = Field(default_factory=list)
     scenario_ids: list[ScenarioId] = Field(default_factory=list)
@@ -156,6 +172,29 @@ class ArtifactRef(BaseModel):
     label: str
     path: str
     url: str
+    status: str = "active"
+    revision_id: str = ""
+
+
+class TaskRepairDecision(BaseModel):
+    change_level: RepairChangeLevel = RepairChangeLevel.partial_replan
+    summary: str = ""
+    reasoning: list[str] = Field(default_factory=list)
+    keep_steps: list[str] = Field(default_factory=list)
+    rerun_steps: list[str] = Field(default_factory=list)
+    add_steps: list[str] = Field(default_factory=list)
+    drop_steps: list[str] = Field(default_factory=list)
+    invalidate_artifact_kinds: list[str] = Field(default_factory=list)
+    updated_success_criteria: list[str] = Field(default_factory=list)
+
+
+class TaskRevisionRecord(BaseModel):
+    revision_id: str
+    created_at: str
+    trigger: str = "input_update"
+    summary: str = ""
+    change_level: RepairChangeLevel = RepairChangeLevel.partial_replan
+    based_on_input_version: int = 1
 
 
 class DeviceState(BaseModel):
@@ -205,6 +244,9 @@ class JobState(BaseModel):
     clarification_questions: list[str] = Field(default_factory=list)
     suggested_skills: list[str] = Field(default_factory=list)
     scenario_ids: list[ScenarioId] = Field(default_factory=lambda: list(ScenarioId))
+    editable_input: EditableInputState = Field(default_factory=EditableInputState)
+    current_revision_id: str = "rev-1"
+    revisions: list[TaskRevisionRecord] = Field(default_factory=list)
     acceptance: AcceptanceState = Field(default_factory=AcceptanceState)
     available_actions: list[str] = Field(default_factory=list)
     steps: list[PlanStep] = Field(default_factory=list)
@@ -269,6 +311,16 @@ class AcceptanceUpdateRequest(BaseModel):
     confirmed: bool = True
     note: str = ""
     confirmed_by: str = "user"
+
+
+class InputUpdateRequest(BaseModel):
+    instruction: str
+    supplement: str = ""
+    context_snapshot: list[SessionSource] = Field(default_factory=list)
+    base_version: int = 1
+    device_id: str = "web-console"
+    device_label: str = "Web Console"
+    platform: Platform = Platform.desktop
 
 
 class BotWebhookRequest(BaseModel):

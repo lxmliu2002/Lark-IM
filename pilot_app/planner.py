@@ -1,7 +1,16 @@
 from __future__ import annotations
 
 from .llm import LLMJsonClient
-from .models import DeliveryMode, JobCreateRequest, PlanStep, PlanningResult, ScenarioId
+from .models import (
+    DeliveryMode,
+    JobCreateRequest,
+    JobState,
+    PlanStep,
+    PlanningResult,
+    RepairChangeLevel,
+    ScenarioId,
+    TaskRepairDecision,
+)
 
 
 CANONICAL_PHASES = [
@@ -227,3 +236,179 @@ Chat content:
             selected.append(ScenarioId.sync)
 
         return list(dict.fromkeys(selected))
+
+    def plan_repair(
+        self,
+        previous_request: JobCreateRequest,
+        current_job: JobState,
+        proposed_plan: PlanningResult,
+    ) -> TaskRepairDecision:
+        try:
+            generated = self.llm_client.generate_model(
+                self._repair_prompt(previous_request, current_job, proposed_plan),
+                TaskRepairDecision,
+            )
+            return self._normalize_repair_decision(generated, current_job, proposed_plan)
+        except Exception:
+            return self._fallback_repair(previous_request, current_job, proposed_plan)
+
+    def _repair_prompt(
+        self,
+        previous_request: JobCreateRequest,
+        current_job: JobState,
+        proposed_plan: PlanningResult,
+    ) -> str:
+        completed_steps = [step.id for step in current_job.steps if step.status == "completed"]
+        current_steps = [step.id for step in current_job.steps]
+        current_artifacts = [artifact.kind for artifact in current_job.artifacts if artifact.status == "active"]
+        return f"""
+Please decide how to repair an existing Agent-Pilot task after the task input was edited.
+Return JSON matching exactly this schema:
+
+{{
+  "change_level": "minor | partial_replan | full_replan",
+  "summary": "string",
+  "reasoning": ["string"],
+  "keep_steps": ["string"],
+  "rerun_steps": ["string"],
+  "add_steps": ["string"],
+  "drop_steps": ["string"],
+  "invalidate_artifact_kinds": ["string"],
+  "updated_success_criteria": ["string"]
+}}
+
+Rules:
+- Use concise Chinese.
+- Prefer minimum-cost repair.
+- Only use canonical steps from: intake, plan, document, slides, sync, delivery.
+- If document changes, slides and delivery are usually affected.
+- If task goal/output changes materially, use full_replan.
+- If only wording/supplement changes and current outputs can be updated incrementally, use partial_replan or minor.
+
+Previous instruction:
+{previous_request.instruction}
+
+Previous supplement:
+{previous_request.supplement}
+
+New instruction:
+{current_job.request.instruction}
+
+New supplement:
+{current_job.request.supplement}
+
+Current steps:
+{current_steps}
+
+Completed steps:
+{completed_steps}
+
+Current active artifacts:
+{current_artifacts}
+
+New inferred scenarios:
+{[item.value for item in current_job.scenario_ids] or [item.value for item in self.infer_scenarios(current_job.request, proposed_plan)]}
+""".strip()
+
+    def _normalize_repair_decision(
+        self,
+        decision: TaskRepairDecision,
+        current_job: JobState,
+        proposed_plan: PlanningResult,
+    ) -> TaskRepairDecision:
+        valid_steps = {phase["id"] for phase in CANONICAL_PHASES}
+        valid_artifacts = {"report_markdown", "slides_preview", "pptx", "manifest", "feishu_doc", "feishu_slides"}
+        keep_steps = [step for step in decision.keep_steps if step in valid_steps]
+        rerun_steps = [step for step in decision.rerun_steps if step in valid_steps]
+        add_steps = [step for step in decision.add_steps if step in valid_steps]
+        drop_steps = [step for step in decision.drop_steps if step in valid_steps]
+        invalid_artifacts = [kind for kind in decision.invalidate_artifact_kinds if kind in valid_artifacts]
+
+        if not rerun_steps and decision.change_level != RepairChangeLevel.minor:
+            fallback = self._fallback_repair(current_job.request, current_job, proposed_plan)
+            rerun_steps = fallback.rerun_steps
+            if not invalid_artifacts:
+                invalid_artifacts = fallback.invalidate_artifact_kinds
+            if not keep_steps:
+                keep_steps = fallback.keep_steps
+            if not decision.summary:
+                decision.summary = fallback.summary
+            if decision.change_level == RepairChangeLevel.minor and fallback.change_level != RepairChangeLevel.minor:
+                decision.change_level = fallback.change_level
+
+        rerun_steps = self._expand_rerun_steps(rerun_steps)
+        keep_steps = [step for step in keep_steps if step not in rerun_steps and step not in drop_steps]
+        if not keep_steps:
+            keep_steps = [
+                step.id for step in current_job.steps if step.id not in rerun_steps and step.id not in drop_steps
+            ]
+        return TaskRepairDecision(
+            change_level=decision.change_level,
+            summary=decision.summary or "任务输入已更新，Agent 将按最小影响范围修正任务。",
+            reasoning=decision.reasoning,
+            keep_steps=list(dict.fromkeys(keep_steps)),
+            rerun_steps=list(dict.fromkeys(rerun_steps)),
+            add_steps=list(dict.fromkeys(add_steps)),
+            drop_steps=list(dict.fromkeys(drop_steps)),
+            invalidate_artifact_kinds=list(dict.fromkeys(invalid_artifacts)),
+            updated_success_criteria=decision.updated_success_criteria or current_job.success_criteria or proposed_plan.success_criteria,
+        )
+
+    def _fallback_repair(
+        self,
+        previous_request: JobCreateRequest,
+        current_job: JobState,
+        proposed_plan: PlanningResult,
+    ) -> TaskRepairDecision:
+        previous_text = f"{previous_request.instruction}\n{previous_request.supplement}\n{previous_request.chat_text}".strip()
+        current_text = f"{current_job.request.instruction}\n{current_job.request.supplement}\n{current_job.request.chat_text}".strip()
+        if previous_text == current_text:
+            return TaskRepairDecision(
+                change_level=RepairChangeLevel.minor,
+                summary="任务输入未发生实质变化，保留现有执行结果。",
+                keep_steps=[step.id for step in current_job.steps],
+                rerun_steps=[],
+                invalidate_artifact_kinds=[],
+                updated_success_criteria=current_job.success_criteria or proposed_plan.success_criteria,
+            )
+
+        previous_output = previous_request.preferred_output
+        current_output = current_job.request.preferred_output
+        if previous_output != current_output:
+            return TaskRepairDecision(
+                change_level=RepairChangeLevel.full_replan,
+                summary="交付模式发生变化，需要从规划开始重新生成文档与交付物。",
+                rerun_steps=["plan", "document", "slides", "delivery"],
+                invalidate_artifact_kinds=["report_markdown", "slides_preview", "pptx", "manifest", "feishu_doc", "feishu_slides"],
+                updated_success_criteria=proposed_plan.success_criteria,
+            )
+
+        instruction_delta = previous_request.instruction.strip() != current_job.request.instruction.strip()
+        if instruction_delta:
+            return TaskRepairDecision(
+                change_level=RepairChangeLevel.partial_replan,
+                summary="任务说明已更新，需要重新规划并刷新文档、演示稿与交付物。",
+                rerun_steps=["plan", "document", "slides", "delivery"],
+                invalidate_artifact_kinds=["report_markdown", "slides_preview", "pptx", "manifest", "feishu_doc", "feishu_slides"],
+                updated_success_criteria=proposed_plan.success_criteria,
+            )
+
+        return TaskRepairDecision(
+            change_level=RepairChangeLevel.partial_replan,
+            summary="上下文或补充内容已更新，保留入口步骤，重跑文档、演示稿和交付。",
+            keep_steps=["intake", "plan", "sync"],
+            rerun_steps=["document", "slides", "delivery"],
+            invalidate_artifact_kinds=["report_markdown", "slides_preview", "pptx", "manifest", "feishu_doc", "feishu_slides"],
+            updated_success_criteria=current_job.success_criteria or proposed_plan.success_criteria,
+        )
+
+    @staticmethod
+    def _expand_rerun_steps(rerun_steps: list[str]) -> list[str]:
+        expanded = list(rerun_steps)
+        if "plan" in expanded:
+            expanded.extend(["document", "slides", "delivery"])
+        if "document" in expanded:
+            expanded.extend(["slides", "delivery"])
+        if "slides" in expanded:
+            expanded.append("delivery")
+        return list(dict.fromkeys(expanded))

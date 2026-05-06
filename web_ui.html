@@ -590,6 +590,45 @@
       color: #334155 !important;
     }
 
+    .input-editor-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .input-editor-grid textarea {
+      min-height: 120px;
+    }
+
+    .context-editor-card {
+      border-radius: 16px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      background: rgba(248, 250, 252, 0.84);
+      padding: 14px;
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .context-editor-card textarea {
+      min-height: 96px;
+    }
+
+    .context-editor-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.68;
+      font-size: 13px;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .sync-pill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
     iframe {
       width: 100%;
       height: 620px;
@@ -766,6 +805,10 @@
             <button id="refreshBtn" class="secondary-btn" type="button">刷新状态</button>
           </div>
           <div id="statusText" class="status">等待任务启动。</div>
+          <div id="realtimeStatus" class="status-card">
+            <strong>实时通道状态</strong>
+            <p>当前尚未连接任务实时通道。</p>
+          </div>
 
           <div class="inline-grid">
             <label>
@@ -890,6 +933,40 @@
             <div class="desktop-column">
               <section>
                 <div class="desktop-heading">
+                  <h3>任务输入包</h3>
+                  <span class="subtle">跨端可编辑的说明、补充与上下文摘要</span>
+                </div>
+                <div id="inputSyncMeta" class="status-card">
+                  <strong>任务输入版本</strong>
+                  <p>等待任务生成输入快照。</p>
+                </div>
+                <div id="inputConflictBanner" class="status-card hidden" style="margin-top:10px;"></div>
+                <div class="actions" style="margin:10px 0 8px;">
+                  <button id="editInputBtn" class="secondary-btn" type="button">编辑任务输入</button>
+                  <button id="saveInputBtn" class="primary-btn hidden" type="button">保存输入</button>
+                  <button id="cancelInputBtn" class="secondary-btn hidden" type="button">取消编辑</button>
+                  <button id="importContextBtn" class="secondary-btn hidden" type="button">使用当前会话勾选覆盖上下文</button>
+                </div>
+                <div class="input-editor-grid">
+                  <label>
+                    任务说明
+                    <textarea id="editableInstructionInput" disabled></textarea>
+                  </label>
+                  <label>
+                    补充内容
+                    <textarea id="editableSupplementInput" disabled></textarea>
+                  </label>
+                  <div>
+                    <div class="meta-line" style="margin-bottom:8px;">上下文摘要</div>
+                    <div id="contextSnapshotEditor" class="stack">
+                      <div class="empty">等待任务生成上下文快照。</div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <div class="desktop-heading">
                   <h3>计划总览</h3>
                   <span class="subtle">Agent Harness 输出的执行步骤</span>
                 </div>
@@ -1008,13 +1085,33 @@
     const activeEventList = document.getElementById("activeEventList");
     const eventList = document.getElementById("eventList");
     const rawJson = document.getElementById("rawJson");
+    const realtimeStatus = document.getElementById("realtimeStatus");
+    const inputSyncMeta = document.getElementById("inputSyncMeta");
+    const inputConflictBanner = document.getElementById("inputConflictBanner");
+    const editInputBtn = document.getElementById("editInputBtn");
+    const saveInputBtn = document.getElementById("saveInputBtn");
+    const cancelInputBtn = document.getElementById("cancelInputBtn");
+    const importContextBtn = document.getElementById("importContextBtn");
+    const editableInstructionInput = document.getElementById("editableInstructionInput");
+    const editableSupplementInput = document.getElementById("editableSupplementInput");
+    const contextSnapshotEditor = document.getElementById("contextSnapshotEditor");
 
     let currentJobId = new URLSearchParams(window.location.search).get("job_id") || "";
     let pollingTimer = null;
+    let jobSocket = null;
+    let eventsSocket = null;
+    let jobSocketConnected = false;
+    let eventsSocketConnected = false;
+    let jobSocketRetryTimer = null;
+    let eventsSocketRetryTimer = null;
     let sessionSearchCache = [];
     let selectedSessionSources = [];
     let currentMessageSessionKey = "";
     let latestLarkStatus = null;
+    let latestJobState = null;
+    let inputEditMode = false;
+    let inputDraft = null;
+    let inputConflictState = null;
     taskTemplateInput.addEventListener("change", () => {
       const template = taskTemplateInput.value.trim();
       if (!template) return;
@@ -1036,7 +1133,9 @@
 
     refreshBtn.addEventListener("click", async () => {
       await loadSkills();
-      await loadActiveEvents();
+      if (!eventsSocketConnected) {
+        await loadActiveEvents();
+      }
       if (!currentJobId) {
         await restoreLatestJob();
       }
@@ -1044,6 +1143,7 @@
         emptyState.classList.add("hidden");
         resultShell.classList.remove("hidden");
         await pollJob();
+        connectJobSocket(currentJobId);
       }
     });
 
@@ -1056,10 +1156,15 @@
       toggleCurrentSessionMessages(false);
     });
     supplementInput.addEventListener("input", () => {
-      syncChatInputFromSelectedSessions();
+      if (!currentJobId) {
+        statusText.textContent = "已更新用户补充内容，可直接启动任务。";
+      }
     });
     eventScopeSelect.addEventListener("change", async () => {
-      await loadActiveEvents();
+      connectEventsSocket(eventScopeSelect.value);
+      if (!eventsSocketConnected) {
+        await loadActiveEvents();
+      }
     });
 
     runBtn.addEventListener("click", async () => {
@@ -1080,7 +1185,8 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             instruction,
-            chat_text: chatInput.value.trim(),
+            chat_text: selectedSessionSources.length ? "" : chatInput.value.trim(),
+            supplement: supplementInput.value.trim(),
             session_sources: parseSessionSources(),
             preferred_output: outputInput.value,
             client_id: "web-dashboard",
@@ -1100,6 +1206,7 @@
         resultShell.classList.remove("hidden");
         statusText.textContent = `任务已启动：${data.job_id}`;
         await syncCurrentDevice("任务已从当前设备发起。");
+        connectJobSocket(currentJobId);
         startPolling();
       } catch (error) {
         console.error(error);
@@ -1124,7 +1231,83 @@
         })
       });
       statusText.textContent = `${device.device_label} 已确认验收标准。`;
-      await pollJob();
+      if (!jobSocketConnected) {
+        await pollJob();
+      }
+    });
+
+    editInputBtn.addEventListener("click", () => {
+      if (!latestJobState) return;
+      inputEditMode = true;
+      inputConflictState = null;
+      inputDraft = buildInputDraft(latestJobState);
+      renderEditableInput(latestJobState);
+    });
+
+    cancelInputBtn.addEventListener("click", () => {
+      inputEditMode = false;
+      inputConflictState = null;
+      if (latestJobState) {
+        inputDraft = buildInputDraft(latestJobState);
+        renderEditableInput(latestJobState);
+      }
+    });
+
+    importContextBtn.addEventListener("click", () => {
+      if (!inputEditMode || !inputDraft) return;
+      inputDraft.context_snapshot = buildContextSnapshotFromSelectedSources();
+      renderEditableInput(latestJobState);
+    });
+
+    saveInputBtn.addEventListener("click", async () => {
+      if (!currentJobId || !inputDraft) return;
+      const device = currentDeviceIdentity();
+      inputDraft.instruction = editableInstructionInput.value.trim();
+      inputDraft.supplement = editableSupplementInput.value.trim();
+      inputDraft.context_snapshot = collectEditableContextSnapshot();
+      try {
+        const response = await fetch(`/api/jobs/${currentJobId}/input`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            instruction: inputDraft.instruction,
+            supplement: inputDraft.supplement,
+            context_snapshot: inputDraft.context_snapshot,
+            base_version: inputDraft.base_version,
+            device_id: device.device_id,
+            device_label: device.device_label,
+            platform: device.platform
+          })
+        });
+        const data = await response.json();
+        if (response.status === 409) {
+          inputConflictState = data.detail || {};
+          latestJobState = data.detail?.job || latestJobState;
+          statusText.textContent = "任务输入发生冲突，请先处理后再保存。";
+          renderEditableInput(latestJobState);
+          return;
+        }
+        if (!response.ok) {
+          throw new Error(data.detail || "保存任务输入失败");
+        }
+        inputEditMode = false;
+        inputConflictState = null;
+        renderJob(data);
+        statusText.textContent = "任务输入已保存，Agent 正在评估最小影响范围并修正任务。";
+      } catch (error) {
+        console.error(error);
+        statusText.textContent = `保存失败：${error.message || "unknown"}`;
+      }
+    });
+
+    editableInstructionInput.addEventListener("input", (event) => {
+      if (!inputEditMode || !inputDraft) return;
+      inputDraft.instruction = String(event.target.value || "");
+    });
+
+    editableSupplementInput.addEventListener("input", (event) => {
+      if (!inputEditMode || !inputDraft) return;
+      inputDraft.supplement = String(event.target.value || "");
     });
     larkSearchBtn.addEventListener("click", async () => {
       larkSearchResult.innerHTML = "<strong>飞书在线结果</strong><p>正在调用真实飞书用户查询...</p>";
@@ -1328,10 +1511,6 @@
           return `[${item.label}]\n${selectedLines.join("\n")}`;
         })
         .filter(Boolean);
-      const supplement = supplementInput.value.trim();
-      if (supplement) {
-        transcriptBlocks.push(`[用户补充]\n${supplement}`);
-      }
       chatInput.value = transcriptBlocks.join("\n\n");
     }
 
@@ -1418,14 +1597,33 @@
     }
 
     function startPolling() {
-      if (pollingTimer) {
-        clearInterval(pollingTimer);
+      if (pollingTimer || (jobSocketConnected && eventsSocketConnected)) {
+        return;
       }
-      pollJob();
+      if (!jobSocketConnected) {
+        pollJob();
+      }
+      if (!eventsSocketConnected) {
+        loadActiveEvents();
+      }
       pollingTimer = setInterval(async () => {
-        await pollJob();
-        await loadActiveEvents();
+        if (jobSocketConnected && eventsSocketConnected) {
+          stopPolling();
+          return;
+        }
+        if (!jobSocketConnected) {
+          await pollJob();
+        }
+        if (!eventsSocketConnected) {
+          await loadActiveEvents();
+        }
       }, 2000);
+    }
+
+    function stopPolling() {
+      if (!pollingTimer) return;
+      clearInterval(pollingTimer);
+      pollingTimer = null;
     }
 
     async function pollJob() {
@@ -1433,10 +1631,6 @@
       const response = await fetch(`/api/jobs/${currentJobId}`);
       const job = await response.json();
       renderJob(job);
-      if (job.status === "completed" || job.status === "failed") {
-        clearInterval(pollingTimer);
-        pollingTimer = null;
-      }
     }
 
     async function restoreLatestJob() {
@@ -1476,6 +1670,139 @@
       });
     }
 
+    function websocketUrl(path) {
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      return `${protocol}://${window.location.host}${path}`;
+    }
+
+    function updateRealtimeStatusCard() {
+      const jobState = jobSocketConnected ? "在线" : "离线";
+      const eventsState = eventsSocketConnected ? "在线" : "离线";
+      const mode = jobSocketConnected && eventsSocketConnected ? "WebSocket 实时推送" : "轮询兜底中";
+      realtimeStatus.innerHTML = `
+        <strong>实时通道状态</strong>
+        <p>任务通道：${escapeHtml(jobState)} ｜ 事件通道：${escapeHtml(eventsState)}</p>
+        <div class="sync-pill-list">
+          <span class="tag ${jobSocketConnected ? "completed" : "warning"}">Job WS</span>
+          <span class="tag ${eventsSocketConnected ? "completed" : "warning"}">Events WS</span>
+          <span class="tag ${jobSocketConnected && eventsSocketConnected ? "completed" : "queued"}">${escapeHtml(mode)}</span>
+        </div>
+      `;
+    }
+
+    function connectJobSocket(jobId) {
+      closeJobSocket();
+      if (!jobId) return;
+      jobSocket = new WebSocket(websocketUrl(`/ws/jobs/${encodeURIComponent(jobId)}`));
+      jobSocket.onopen = () => {
+        jobSocketConnected = true;
+        updateRealtimeStatusCard();
+        if (eventsSocketConnected) {
+          stopPolling();
+        }
+      };
+      jobSocket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.payload && data.payload.job) {
+            renderJob(data.payload.job);
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      };
+      jobSocket.onclose = () => {
+        jobSocketConnected = false;
+        updateRealtimeStatusCard();
+        startPolling();
+        if (jobSocketRetryTimer) {
+          clearTimeout(jobSocketRetryTimer);
+        }
+        if (currentJobId === jobId) {
+          jobSocketRetryTimer = setTimeout(() => connectJobSocket(jobId), 2000);
+        }
+      };
+      jobSocket.onerror = () => {
+        try {
+          jobSocket.close();
+        } catch (error) {
+          console.error(error);
+        }
+      };
+    }
+
+    function closeJobSocket() {
+      if (jobSocketRetryTimer) {
+        clearTimeout(jobSocketRetryTimer);
+        jobSocketRetryTimer = null;
+      }
+      if (!jobSocket) return;
+      try {
+        jobSocket.close();
+      } catch (error) {
+        console.error(error);
+      }
+      jobSocket = null;
+      jobSocketConnected = false;
+      updateRealtimeStatusCard();
+    }
+
+    function connectEventsSocket(scope) {
+      closeEventsSocket();
+      eventsSocket = new WebSocket(websocketUrl(`/ws/events/${encodeURIComponent(scope)}`));
+      eventsSocket.onopen = () => {
+        eventsSocketConnected = true;
+        updateRealtimeStatusCard();
+        if (jobSocketConnected) {
+          stopPolling();
+        }
+      };
+      eventsSocket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.payload && Array.isArray(data.payload.events)) {
+            renderActiveEvents(data.payload.events);
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      };
+      eventsSocket.onclose = () => {
+        eventsSocketConnected = false;
+        updateRealtimeStatusCard();
+        startPolling();
+        if (eventsSocketRetryTimer) {
+          clearTimeout(eventsSocketRetryTimer);
+        }
+        if (eventScopeSelect.value === scope) {
+          eventsSocketRetryTimer = setTimeout(() => connectEventsSocket(scope), 2000);
+        }
+      };
+      eventsSocket.onerror = () => {
+        try {
+          eventsSocket.close();
+        } catch (error) {
+          console.error(error);
+        }
+      };
+    }
+
+    function closeEventsSocket() {
+      if (eventsSocketRetryTimer) {
+        clearTimeout(eventsSocketRetryTimer);
+        eventsSocketRetryTimer = null;
+      }
+      if (!eventsSocket) return;
+      try {
+        eventsSocket.close();
+      } catch (error) {
+        console.error(error);
+      }
+      eventsSocket = null;
+      eventsSocketConnected = false;
+      updateRealtimeStatusCard();
+    }
+
     async function pushDeviceHeartbeat(platform, deviceLabel, currentView, note) {
       if (!currentJobId) return;
 
@@ -1499,6 +1826,7 @@
     }
 
     function renderJob(job) {
+      latestJobState = job;
       rawJson.textContent = JSON.stringify(job, null, 2);
       statusText.textContent = `任务 ${job.job_id} 当前状态：${job.status}`;
       desktopStatusTag.textContent = statusLabel(job.status);
@@ -1506,6 +1834,7 @@
 
       renderJobStats(job);
       renderOverview(job);
+      renderEditableInput(job);
       renderSteps(job);
       renderBrief(job);
       renderArtifacts(job);
@@ -1586,7 +1915,12 @@
 
     function renderArtifacts(job) {
       artifactStack.innerHTML = "";
-      if (job.artifacts.length) {
+      const artifacts = [...(job.artifacts || [])].sort((left, right) => {
+        const leftWeight = left.status === "active" ? 0 : 1;
+        const rightWeight = right.status === "active" ? 0 : 1;
+        return leftWeight - rightWeight;
+      });
+      if (artifacts.length) {
         downloadAllArtifactsBtn.classList.remove("hidden");
         downloadAllArtifactsBtn.href = `/api/jobs/${encodeURIComponent(job.job_id)}/artifacts.zip`;
       } else {
@@ -1594,12 +1928,13 @@
         downloadAllArtifactsBtn.href = "#";
       }
 
-      job.artifacts.forEach((artifact) => {
+      artifacts.forEach((artifact) => {
+        const artifactStatus = artifact.status || "active";
         const node = document.createElement("article");
         node.className = "artifact-card";
         node.innerHTML = `
           <div>
-            <strong>${escapeHtml(artifact.label)}</strong>
+            <strong>${escapeHtml(artifact.label)} <span class="tag ${statusClass(artifactStatus === "active" ? "completed" : "warning")}">${escapeHtml(artifactStatus)}</span></strong>
             <p>${escapeHtml(artifact.kind)}</p>
             <p class="artifact-path">${escapeHtml(artifact.path || "无本地路径")}</p>
           </div>
@@ -1613,6 +1948,9 @@
         openLink.target = "_blank";
         openLink.rel = "noopener";
         openLink.textContent = "打开";
+        if (artifactStatus !== "active") {
+          openLink.classList.add("secondary-btn");
+        }
         actions.appendChild(openLink);
 
         const downloadLink = document.createElement("a");
@@ -1620,6 +1958,9 @@
         downloadLink.href = buildDownloadUrl(artifact.url);
         downloadLink.textContent = "下载";
         downloadLink.setAttribute("download", "");
+        if (artifactStatus !== "active") {
+          downloadLink.classList.add("secondary-btn");
+        }
         actions.appendChild(downloadLink);
 
         node.appendChild(actions);
@@ -1643,6 +1984,169 @@
         <p>${escapeHtml(acceptance.result_summary || acceptance.note || "等待验收。")}</p>
       `;
       acceptanceGrid.appendChild(summary);
+    }
+
+    function buildInputDraft(job) {
+      const editable = job.editable_input || {};
+      return {
+        instruction: editable.instruction || job.request?.instruction || "",
+        supplement: editable.supplement || job.request?.supplement || "",
+        context_snapshot: cloneSessionSources(editable.context_snapshot || job.request?.session_sources || []),
+        base_version: editable.version || 1,
+        updated_at: editable.updated_at || "",
+        updated_by: editable.updated_by || ""
+      };
+    }
+
+    function cloneSessionSources(items) {
+      return (items || []).map((item, idx) => ({
+        kind: item.kind || "chat",
+        source_id: item.source_id || `context-${idx + 1}`,
+        label: item.label || `上下文 ${idx + 1}`,
+        transcript: item.transcript || ""
+      }));
+    }
+
+    function buildContextSnapshotFromSelectedSources() {
+      return selectedSessionSources.map((item) => ({
+        kind: item.kind,
+        source_id: item.source_id,
+        label: item.label,
+        transcript: (item.messages || [])
+          .filter((msg) => msg.checked)
+          .map((msg) => msg.text)
+          .join("\n")
+      })).filter((item) => item.transcript.trim());
+    }
+
+    function collectEditableContextSnapshot() {
+      const cards = contextSnapshotEditor.querySelectorAll("[data-context-index]");
+      return Array.from(cards).map((card, index) => {
+        const transcriptArea = card.querySelector("textarea");
+        const labelInput = card.querySelector("input");
+        const current = inputDraft?.context_snapshot?.[index] || {};
+        return {
+          kind: current.kind || "chat",
+          source_id: current.source_id || `context-${index + 1}`,
+          label: labelInput ? labelInput.value.trim() : (current.label || `上下文 ${index + 1}`),
+          transcript: transcriptArea ? transcriptArea.value.trim() : (current.transcript || "")
+        };
+      }).filter((item) => item.label || item.transcript);
+    }
+
+    function renderEditableInput(job) {
+      if (!inputEditMode || !inputDraft) {
+        inputDraft = buildInputDraft(job);
+      }
+      const editable = job.editable_input || {};
+      const version = editable.version || inputDraft.base_version || 1;
+      inputSyncMeta.innerHTML = `
+        <strong>任务输入版本</strong>
+        <p>当前版本：v${escapeHtml(version)} ｜ 最近更新：${escapeHtml(editable.updated_at || "未知")}</p>
+        <p>最近更新设备：${escapeHtml(editable.updated_by || "未知")}</p>
+        <div class="sync-pill-list">
+          <span class="tag ${jobSocketConnected ? "completed" : "queued"}">${jobSocketConnected ? "Job WS 在线" : "Job WS 轮询中"}</span>
+          <span class="tag ${eventsSocketConnected ? "completed" : "queued"}">${eventsSocketConnected ? "Events WS 在线" : "Events WS 轮询中"}</span>
+        </div>
+      `;
+
+      editInputBtn.classList.toggle("hidden", inputEditMode);
+      saveInputBtn.classList.toggle("hidden", !inputEditMode);
+      cancelInputBtn.classList.toggle("hidden", !inputEditMode);
+      importContextBtn.classList.toggle("hidden", !inputEditMode);
+
+      editableInstructionInput.disabled = !inputEditMode;
+      editableSupplementInput.disabled = !inputEditMode;
+      editableInstructionInput.value = inputDraft?.instruction || "";
+      editableSupplementInput.value = inputDraft?.supplement || "";
+
+      contextSnapshotEditor.innerHTML = "";
+      const contexts = inputDraft?.context_snapshot || [];
+      if (!contexts.length) {
+        contextSnapshotEditor.innerHTML = '<div class="empty">当前任务还没有上下文摘要。</div>';
+      } else {
+        contexts.forEach((item, index) => {
+          const card = document.createElement("article");
+          card.className = "context-editor-card";
+          card.dataset.contextIndex = String(index);
+          if (inputEditMode) {
+            card.innerHTML = `
+              <label>
+                上下文标签
+                <input value="${escapeHtml(item.label || `上下文 ${index + 1}`)}">
+              </label>
+              <label>
+                上下文内容
+                <textarea>${escapeHtml(item.transcript || "")}</textarea>
+              </label>
+            `;
+          } else {
+            card.innerHTML = `
+              <strong>${escapeHtml(item.label || `上下文 ${index + 1}`)}</strong>
+              <p>${escapeHtml(item.transcript || "（空）")}</p>
+            `;
+          }
+          contextSnapshotEditor.appendChild(card);
+          if (inputEditMode) {
+            const labelInput = card.querySelector("input");
+            const transcriptArea = card.querySelector("textarea");
+            if (labelInput) {
+              labelInput.addEventListener("input", (event) => {
+                if (!inputDraft?.context_snapshot?.[index]) return;
+                inputDraft.context_snapshot[index].label = String(event.target.value || "");
+              });
+            }
+            if (transcriptArea) {
+              transcriptArea.addEventListener("input", (event) => {
+                if (!inputDraft?.context_snapshot?.[index]) return;
+                inputDraft.context_snapshot[index].transcript = String(event.target.value || "");
+              });
+            }
+          }
+        });
+      }
+
+      renderInputConflictBanner();
+    }
+
+    function renderInputConflictBanner() {
+      if (!inputConflictState?.editable_input) {
+        inputConflictBanner.classList.add("hidden");
+        inputConflictBanner.innerHTML = "";
+        return;
+      }
+      const editable = inputConflictState.editable_input || {};
+      inputConflictBanner.classList.remove("hidden");
+      inputConflictBanner.innerHTML = `
+        <strong>检测到跨端冲突 <span class="tag warning">需要处理</span></strong>
+        <p>${escapeHtml(inputConflictState.message || "任务输入已被其他端更新。")}</p>
+        <p style="margin-top:8px;">远端最新版本：v${escapeHtml(editable.version || 1)} ｜ 更新时间：${escapeHtml(editable.updated_at || "未知")} ｜ 更新设备：${escapeHtml(editable.updated_by || "未知")}</p>
+        <div class="actions" style="margin-top:10px;">
+          <button id="conflictReloadBtn" class="secondary-btn" type="button">重新加载再改</button>
+          <button id="conflictKeepBtn" class="secondary-btn" type="button">保留我的修改并重新编辑</button>
+          <button id="conflictUseRemoteBtn" class="secondary-btn" type="button">使用远端版本</button>
+        </div>
+      `;
+      inputConflictBanner.querySelector("#conflictReloadBtn").addEventListener("click", () => {
+        const conflictJob = inputConflictState.job || latestJobState;
+        inputDraft = buildInputDraft(conflictJob);
+        inputConflictState = null;
+        inputEditMode = true;
+        renderEditableInput(conflictJob);
+      });
+      inputConflictBanner.querySelector("#conflictKeepBtn").addEventListener("click", () => {
+        inputConflictBanner.innerHTML = `
+          <strong>保留本地修改</strong>
+          <p>本地草稿已保留。请参考远端最新版本后继续调整，准备好后再保存。</p>
+        `;
+      });
+      inputConflictBanner.querySelector("#conflictUseRemoteBtn").addEventListener("click", () => {
+        const conflictJob = inputConflictState.job || latestJobState;
+        inputDraft = buildInputDraft(conflictJob);
+        inputConflictState = null;
+        inputEditMode = false;
+        renderEditableInput(conflictJob);
+      });
     }
 
     function renderEvents(job) {
@@ -1673,7 +2177,7 @@
     }
 
     function parseSessionSources() {
-      const sessionPayload = selectedSessionSources.map((item) => ({
+      return selectedSessionSources.map((item) => ({
         kind: item.kind,
         source_id: item.source_id,
         label: item.label,
@@ -1681,17 +2185,7 @@
           .filter((msg) => msg.checked)
           .map((msg) => msg.text)
           .join("\n")
-      }));
-      const supplement = supplementInput.value.trim();
-      if (supplement) {
-        sessionPayload.push({
-          kind: "manual",
-          source_id: "manual-supplement",
-          label: "用户补充",
-          transcript: supplement
-        });
-      }
-      return sessionPayload;
+      })).filter((item) => item.transcript.trim());
     }
 
     function statusClass(status) {
@@ -1785,7 +2279,10 @@
           statusText.textContent = `已切换到任务：${event.job_id}`;
           await syncCurrentDevice("当前设备通过事件总览切换到该任务。");
           await pollJob();
-          await loadActiveEvents();
+          connectJobSocket(currentJobId);
+          if (!eventsSocketConnected) {
+            await loadActiveEvents();
+          }
           if (!pollingTimer) {
             startPolling();
           }
@@ -1796,17 +2293,23 @@
 
     function renderEmpty() {
       currentJobId = "";
+      latestJobState = null;
       syncJobIdToUrl("");
       emptyState.classList.remove("hidden");
       resultShell.classList.add("hidden");
       statusText.textContent = "当前没有可恢复的任务。";
       rawJson.textContent = "";
       activeEventList.innerHTML = '<div class="empty">当前没有可展示的任务事件。</div>';
+      closeJobSocket();
     }
 
     loadSkills().then(async () => {
+      updateRealtimeStatusCard();
       await searchSessionSources();
-      await loadActiveEvents();
+      connectEventsSocket(eventScopeSelect.value);
+      if (!eventsSocketConnected) {
+        await loadActiveEvents();
+      }
       if (!currentJobId) {
         await restoreLatestJob();
       }
@@ -1815,8 +2318,9 @@
         emptyState.classList.add("hidden");
         resultShell.classList.remove("hidden");
         await pollJob();
-        startPolling();
+        connectJobSocket(currentJobId);
       }
+      startPolling();
     });
   </script>
 </body>

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import mimetypes
 import zipfile
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 
 from .harness import AgentHarness
 from .lark_cli import LarkCLIClient
@@ -22,6 +23,7 @@ from .models import (
     JobCreateRequest,
     JobState,
     JobSummary,
+    InputUpdateRequest,
     LarkConnectionStatus,
     LarkIMJobAccepted,
     LarkIMJobRequest,
@@ -33,8 +35,9 @@ from .models import (
     SkillDefinition,
 )
 from .planner import AgentPlanner
+from .realtime import RealtimeHub
 from .skills import LarkSkillRegistry
-from .store import MySQLJobStore
+from .store import InputConflictError, MySQLJobStore
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 OUTPUT_ROOT = BASE_DIR / "outputs" / "jobs"
@@ -49,8 +52,30 @@ planner = AgentPlanner(llm_client)
 lark_cli_client = LarkCLIClient(BASE_DIR)
 skill_registry = LarkSkillRegistry(lark_cli_client)
 harness = AgentHarness(store, planner, llm_client, lark_cli_client, skill_registry, OUTPUT_ROOT)
+realtime_hub = RealtimeHub()
 
 app = FastAPI(title="Agent Pilot Demo", version="2.0.0")
+
+
+def _publish_job_change(job: JobState, change_type: str) -> None:
+    realtime_hub.publish_job(
+        job.job_id,
+        change_type,
+        {"job": job.model_dump(mode="json")},
+    )
+    for scope in ("latest", "running", "completed"):
+        realtime_hub.publish_events(
+            scope,
+            {"scope": scope, "events": [event.model_dump(mode="json") for event in store.list_events(scope=scope, limit=40)]},
+        )
+
+
+store.set_change_notifier(_publish_job_change)
+
+
+@app.on_event("startup")
+async def bind_realtime_loop() -> None:
+    realtime_hub.bind_loop(asyncio.get_running_loop())
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -275,6 +300,30 @@ def get_job(job_id: str) -> JobState:
         raise HTTPException(status_code=404, detail="Job not found.") from exc
 
 
+@app.patch("/api/jobs/{job_id}/input", response_model=JobState)
+def update_job_input(job_id: str, req: InputUpdateRequest, background_tasks: BackgroundTasks):
+    try:
+        previous_job = store.get_job(job_id)
+        updated_job = store.update_editable_input(job_id, req)
+        background_tasks.add_task(harness.repair_job, job_id, previous_job.request.model_copy(deep=True))
+        return updated_job
+    except InputConflictError as exc:
+        latest_job = exc.job
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": {
+                    "type": "input_conflict",
+                    "message": "任务输入已被其他端更新，请重新加载后再修改。",
+                    "job": latest_job.model_dump(mode="json"),
+                    "editable_input": latest_job.editable_input.model_dump(mode="json"),
+                }
+            },
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Job not found.") from exc
+
+
 @app.post("/api/jobs/{job_id}/devices", response_model=JobState)
 def sync_device(job_id: str, req: DeviceUpdateRequest) -> JobState:
     try:
@@ -383,3 +432,71 @@ def download_job_artifacts(job_id: str):
     buffer.seek(0)
     headers = {"Content-Disposition": f'attachment; filename="{Path(job_id).name}-artifacts.zip"'}
     return StreamingResponse(buffer, media_type="application/zip", headers=headers)
+
+
+@app.websocket("/ws/jobs/{job_id}")
+async def job_updates_socket(websocket: WebSocket, job_id: str) -> None:
+    try:
+        job = store.get_job(job_id)
+    except KeyError:
+        await websocket.accept()
+        await websocket.send_json(
+            {
+                "type": "job.missing",
+                "job_id": job_id,
+                "scope": "job",
+                "timestamp": "",
+                "payload": {"message": "Job not found."},
+            }
+        )
+        await websocket.close(code=4404)
+        return
+
+    await realtime_hub.connect_job(job_id, websocket)
+    await websocket.send_json(
+        {
+            "type": "job.updated",
+            "job_id": job_id,
+            "scope": "job",
+            "timestamp": "",
+            "payload": {"job": job.model_dump(mode="json")},
+        }
+    )
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await realtime_hub.disconnect_job(job_id, websocket)
+
+
+@app.websocket("/ws/events/{scope}")
+async def events_socket(websocket: WebSocket, scope: str) -> None:
+    if scope not in {"latest", "running", "completed"}:
+        await websocket.accept()
+        await websocket.send_json(
+            {
+                "type": "events.invalid_scope",
+                "job_id": "",
+                "scope": scope,
+                "timestamp": "",
+                "payload": {"message": "Unsupported scope."},
+            }
+        )
+        await websocket.close(code=4400)
+        return
+
+    await realtime_hub.connect_events(scope, websocket)
+    await websocket.send_json(
+        {
+            "type": "events.updated",
+            "job_id": "",
+            "scope": scope,
+            "timestamp": "",
+            "payload": {"scope": scope, "events": [event.model_dump(mode="json") for event in store.list_events(scope=scope, limit=40)]},
+        }
+    )
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await realtime_hub.disconnect_events(scope, websocket)

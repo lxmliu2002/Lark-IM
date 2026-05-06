@@ -17,17 +17,29 @@ from .models import (
     ContentBrief,
     DeviceState,
     DeviceUpdateRequest,
+    EditableInputState,
     EventRecord,
+    InputUpdateRequest,
     JobCreateRequest,
     JobState,
     JobStatus,
     JobSummary,
     PlanStep,
+    RepairChangeLevel,
     ScenarioId,
+    SessionSource,
     StepStatus,
     SyncState,
+    TaskRepairDecision,
+    TaskRevisionRecord,
     now_iso,
 )
+
+
+class InputConflictError(Exception):
+    def __init__(self, job: JobState) -> None:
+        super().__init__("Task input conflict detected.")
+        self.job = job
 
 
 class MySQLJobStore:
@@ -39,7 +51,11 @@ class MySQLJobStore:
         self.database = os.getenv("MYSQL_DATABASE", "lark_im")
         self.charset = os.getenv("MYSQL_CHARSET", "utf8mb4")
         self._lock = Lock()
+        self._change_notifier: Callable[[JobState, str], None] | None = None
         self._init_db()
+
+    def set_change_notifier(self, notifier: Callable[[JobState, str], None]) -> None:
+        self._change_notifier = notifier
 
     def create_job(self, request: JobCreateRequest) -> JobState:
         with self._lock:
@@ -59,6 +75,7 @@ class MySQLJobStore:
                 updated_at=timestamp,
                 request=normalized_request,
                 scenario_ids=normalized_request.scenario_ids,
+                editable_input=_build_editable_input(normalized_request, timestamp, normalized_request.device_label),
                 acceptance=AcceptanceState(
                     criteria=_default_acceptance_criteria(normalized_request),
                     status=AcceptanceStatus.pending,
@@ -68,7 +85,9 @@ class MySQLJobStore:
                 sync_state=SyncState(active_devices=1, consistency="synced", last_event="Job created"),
             )
             self._save_locked(job)
-            return job.model_copy(deep=True)
+            snapshot = job.model_copy(deep=True)
+        self._notify_change(snapshot, "job.created")
+        return snapshot
 
     def get_job(self, job_id: str) -> JobState:
         with self._lock:
@@ -135,7 +154,7 @@ class MySQLJobStore:
         return self.list_events(scope="running", limit=limit)
 
     def set_status(self, job_id: str, status: JobStatus, error_message: str = "") -> None:
-        self._mutate(job_id, lambda job: self._set_status(job, status, error_message))
+        self._mutate(job_id, lambda job: self._set_status(job, status, error_message), "job.updated")
 
     def set_plan(
         self,
@@ -156,10 +175,10 @@ class MySQLJobStore:
                 job.acceptance.criteria = list(dict.fromkeys(success_criteria + job.acceptance.criteria))
             job.available_actions = _available_actions(job)
 
-        self._mutate(job_id, mutation)
+        self._mutate(job_id, mutation, "job.plan.updated")
 
     def set_brief(self, job_id: str, brief: ContentBrief) -> None:
-        self._mutate(job_id, lambda job: setattr(job, "brief", brief.model_copy(deep=True)))
+        self._mutate(job_id, lambda job: setattr(job, "brief", brief.model_copy(deep=True)), "job.brief.updated")
 
     def set_acceptance(
         self,
@@ -182,7 +201,7 @@ class MySQLJobStore:
             job.acceptance.result_summary = _acceptance_result(job)
             job.available_actions = _available_actions(job)
 
-        self._mutate(job_id, mutation)
+        self._mutate(job_id, mutation, "job.acceptance.updated")
         return self.get_job(job_id)
 
     def update_step(self, job_id: str, step_id: str, status: StepStatus, output_summary: str = "") -> None:
@@ -195,16 +214,22 @@ class MySQLJobStore:
                     break
             job.available_actions = _available_actions(job)
 
-        self._mutate(job_id, mutation)
+        self._mutate(job_id, mutation, "job.step.updated")
 
     def add_artifact(self, job_id: str, artifact: ArtifactRef) -> None:
         def mutation(job: JobState) -> None:
-            existing = {(item.kind, item.url) for item in job.artifacts}
-            if (artifact.kind, artifact.url) not in existing:
+            for item in job.artifacts:
+                if item.kind == artifact.kind and item.url == artifact.url:
+                    item.label = artifact.label
+                    item.path = artifact.path
+                    item.status = artifact.status or "active"
+                    item.revision_id = artifact.revision_id
+                    break
+            else:
                 job.artifacts.append(artifact)
             job.available_actions = _available_actions(job)
 
-        self._mutate(job_id, mutation)
+        self._mutate(job_id, mutation, "job.artifact.added")
 
     def add_event(
         self,
@@ -225,7 +250,152 @@ class MySQLJobStore:
                 )
             )
 
-        self._mutate(job_id, mutation)
+        self._mutate(job_id, mutation, "job.event.added")
+
+    def update_editable_input(self, job_id: str, update: InputUpdateRequest) -> JobState:
+        with self._lock:
+            job = self._load_locked(job_id)
+            current = job.editable_input
+            if update.base_version != current.version:
+                conflict_message = (
+                    f"{update.device_label} 提交的任务输入基于旧版本 v{update.base_version}，"
+                    f"当前最新版本为 v{current.version}。"
+                )
+                job.events.append(
+                    EventRecord(
+                        timestamp=now_iso(),
+                        phase="input",
+                        message=conflict_message,
+                        level="warning",
+                        metadata={
+                            "device_id": update.device_id,
+                            "device_label": update.device_label,
+                            "requested_version": update.base_version,
+                            "current_version": current.version,
+                        },
+                    )
+                )
+                job.updated_at = now_iso()
+                last_event = job.events[-1].message
+                job.sync_state = SyncState(
+                    active_devices=len(job.devices),
+                    consistency="warning",
+                    last_event=last_event,
+                    pending_conflicts=[conflict_message],
+                )
+                self._save_locked(job)
+                snapshot = job.model_copy(deep=True)
+                self._notify_change(snapshot, "job.conflict.detected")
+                raise InputConflictError(snapshot)
+
+            timestamp = now_iso()
+            context_snapshot = [source.model_copy(deep=True) for source in update.context_snapshot]
+            job.request.instruction = update.instruction
+            job.request.supplement = update.supplement
+            job.request.session_sources = context_snapshot
+            job.request.chat_text = _compose_chat_text(context_snapshot, update.supplement)
+            job.editable_input = EditableInputState(
+                instruction=update.instruction,
+                supplement=update.supplement,
+                context_snapshot=context_snapshot,
+                version=current.version + 1,
+                updated_at=timestamp,
+                updated_by=update.device_label,
+            )
+            job.events.append(
+                EventRecord(
+                    timestamp=timestamp,
+                    phase="input",
+                    message=f"{update.device_label} 已更新任务输入到 v{job.editable_input.version}。",
+                    metadata={"device_id": update.device_id, "platform": update.platform.value},
+                )
+            )
+            job.updated_at = timestamp
+            job.sync_state = SyncState(
+                active_devices=len(job.devices),
+                consistency="synced",
+                last_event=job.events[-1].message,
+                pending_conflicts=[],
+            )
+            self._save_locked(job)
+            snapshot = job.model_copy(deep=True)
+        self._notify_change(snapshot, "job.input.updated")
+        return snapshot
+
+    def append_revision(
+        self,
+        job_id: str,
+        revision: TaskRevisionRecord,
+        success_criteria: list[str] | None = None,
+        scenario_ids: list[ScenarioId] | None = None,
+    ) -> JobState:
+        def mutation(job: JobState) -> None:
+            job.current_revision_id = revision.revision_id
+            job.revisions.append(revision)
+            if success_criteria:
+                job.success_criteria = list(success_criteria)
+                job.acceptance.criteria = list(dict.fromkeys(success_criteria + job.acceptance.criteria))
+            if scenario_ids is not None:
+                job.scenario_ids = list(scenario_ids)
+            job.available_actions = _available_actions(job)
+
+        self._mutate(job_id, mutation, "job.revision.updated")
+        return self.get_job(job_id)
+
+    def mark_artifacts_stale(self, job_id: str, artifact_kinds: list[str]) -> JobState:
+        def mutation(job: JobState) -> None:
+            target = set(artifact_kinds)
+            for artifact in job.artifacts:
+                if artifact.kind in target:
+                    artifact.status = "stale"
+            job.available_actions = _available_actions(job)
+
+        self._mutate(job_id, mutation, "job.artifact.stale")
+        return self.get_job(job_id)
+
+    def apply_repair_decision(
+        self,
+        job_id: str,
+        decision: TaskRepairDecision,
+        scenario_ids: list[ScenarioId],
+        replacement_steps: list[PlanStep] | None = None,
+    ) -> JobState:
+        def mutation(job: JobState) -> None:
+            rerun_set = set(decision.rerun_steps)
+            drop_set = set(decision.drop_steps)
+            keep_set = set(decision.keep_steps)
+            existing_steps = {step.id: step.model_copy(deep=True) for step in job.steps}
+            target_steps = replacement_steps or [step.model_copy(deep=True) for step in job.steps]
+            for step in target_steps:
+                previous = existing_steps.get(step.id)
+                if step.id in rerun_set:
+                    step.status = StepStatus.pending
+                    step.output_summary = ""
+                elif step.id in drop_set:
+                    step.status = StepStatus.pending
+                    step.output_summary = "本轮修正中暂不执行。"
+                elif step.id in keep_set and previous is not None:
+                    step.status = previous.status
+                    step.output_summary = previous.output_summary
+                elif previous is not None:
+                    step.status = previous.status
+                    step.output_summary = previous.output_summary
+            job.steps = target_steps
+            if decision.updated_success_criteria:
+                job.success_criteria = list(decision.updated_success_criteria)
+                job.acceptance.criteria = list(dict.fromkeys(decision.updated_success_criteria + job.acceptance.criteria))
+            if rerun_set.intersection({"plan", "document", "slides", "delivery"}):
+                job.brief = None
+                job.acceptance.status = AcceptanceStatus.pending
+                job.acceptance.result_summary = _acceptance_result(job)
+            if scenario_ids:
+                job.scenario_ids = list(scenario_ids)
+            if rerun_set:
+                job.status = JobStatus.queued
+            job.available_actions = _available_actions(job)
+
+        self._mutate(job_id, mutation, "job.repair.applied")
+        return self.get_job(job_id)
 
     def upsert_device(self, job_id: str, device_update: DeviceUpdateRequest) -> JobState:
         def mutation(job: JobState) -> None:
@@ -251,7 +421,7 @@ class MySQLJobStore:
                 )
             )
 
-        self._mutate(job_id, mutation)
+        self._mutate(job_id, mutation, "job.sync.updated")
         self.add_event(
             job_id,
             "sync",
@@ -260,7 +430,7 @@ class MySQLJobStore:
         )
         return self.get_job(job_id)
 
-    def _mutate(self, job_id: str, mutation: Callable[[JobState], None]) -> None:
+    def _mutate(self, job_id: str, mutation: Callable[[JobState], None], change_type: str) -> None:
         with self._lock:
             job = self._load_locked(job_id)
             mutation(job)
@@ -273,6 +443,8 @@ class MySQLJobStore:
                 pending_conflicts=[],
             )
             self._save_locked(job)
+            snapshot = job.model_copy(deep=True)
+        self._notify_change(snapshot, change_type)
 
     def _init_db(self) -> None:
         with self._connect(database=False) as conn:
@@ -355,17 +527,42 @@ class MySQLJobStore:
         job.acceptance.result_summary = _acceptance_result(job)
         job.available_actions = _available_actions(job)
 
+    def _notify_change(self, job: JobState, change_type: str) -> None:
+        if self._change_notifier is None:
+            return
+        self._change_notifier(job, change_type)
+
 
 def _merge_session_transcripts(request: JobCreateRequest) -> JobCreateRequest:
+    merged = _compose_chat_text(request.session_sources, request.supplement, request.chat_text.strip())
+    return request.model_copy(update={"chat_text": merged})
+
+
+def _compose_chat_text(
+    session_sources: list[SessionSource],
+    supplement: str = "",
+    base_chat_text: str = "",
+) -> str:
     transcripts = [
         f"[{source.label or source.source_id or source.kind}]\n{source.transcript.strip()}"
-        for source in request.session_sources
+        for source in session_sources
         if source.transcript.strip()
     ]
-    if not transcripts:
-        return request
-    merged = "\n\n".join([part for part in [request.chat_text.strip(), *transcripts] if part])
-    return request.model_copy(update={"chat_text": merged})
+    merged_parts = [base_chat_text.strip(), *transcripts]
+    if supplement.strip():
+        merged_parts.append(f"[用户补充]\n{supplement.strip()}")
+    return "\n\n".join([part for part in merged_parts if part])
+
+
+def _build_editable_input(request: JobCreateRequest, timestamp: str, updated_by: str) -> EditableInputState:
+    return EditableInputState(
+        instruction=request.instruction,
+        supplement=request.supplement,
+        context_snapshot=[source.model_copy(deep=True) for source in request.session_sources],
+        version=1,
+        updated_at=timestamp,
+        updated_by=updated_by,
+    )
 
 
 def _default_acceptance_criteria(request: JobCreateRequest) -> list[str]:
@@ -391,7 +588,10 @@ def _acceptance_result(job: JobState) -> str:
 
 def _available_actions(job: JobState) -> list[str]:
     actions = ["run_scenarios", "confirm_acceptance"]
-    if any(artifact.kind in {"report_markdown", "slides_preview", "pptx", "manifest"} for artifact in job.artifacts):
+    if any(
+        artifact.kind in {"report_markdown", "slides_preview", "pptx", "manifest"} and artifact.status == "active"
+        for artifact in job.artifacts
+    ):
         actions.append("open_artifacts")
     if job.status in {JobStatus.completed, JobStatus.failed}:
         actions.append("review_result")

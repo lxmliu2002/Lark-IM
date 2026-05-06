@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from uuid import uuid4
 
 from html_slides import generate_slide_deck
 from ppt_tool import render_html_slides_to_ppt
@@ -9,7 +10,18 @@ from ppt_tool import render_html_slides_to_ppt
 from .content import build_content_brief, build_manifest_payload, render_report_markdown, write_json
 from .lark_cli import LarkCLIClient
 from .llm import LLMJsonClient
-from .models import AcceptanceStatus, ArtifactRef, ContentBrief, JobStatus, ScenarioId, StepStatus
+from .models import (
+    AcceptanceStatus,
+    ArtifactRef,
+    ContentBrief,
+    JobCreateRequest,
+    JobStatus,
+    PlanningResult,
+    ScenarioId,
+    StepStatus,
+    TaskRevisionRecord,
+    now_iso,
+)
 from .planner import AgentPlanner
 from .skills import LarkSkillRegistry
 from .store import MySQLJobStore
@@ -38,6 +50,53 @@ class AgentHarness:
         auto_scenarios = self.planner.infer_scenarios(job.request, plan)
         selected_scenarios = job.scenario_ids or auto_scenarios
         self.run_scenarios(job_id, selected_scenarios, finalize=True)
+
+    def repair_job(self, job_id: str, previous_request: JobCreateRequest) -> None:
+        current_job = self.store.get_job(job_id)
+        proposed_plan = self.planner.plan(current_job.request)
+        decision = self.planner.plan_repair(previous_request, current_job, proposed_plan)
+        scenario_lookup = {item.value: item for item in ScenarioId}
+        execution_steps = list(dict.fromkeys(decision.rerun_steps + decision.add_steps))
+        selected_scenarios = [scenario_lookup[item] for item in execution_steps if item in scenario_lookup]
+        revision = TaskRevisionRecord(
+            revision_id=f"rev-{current_job.editable_input.version}-{uuid4().hex[:6]}",
+            created_at=now_iso(),
+            summary=decision.summary,
+            change_level=decision.change_level,
+            based_on_input_version=current_job.editable_input.version,
+        )
+        self.store.append_revision(
+            job_id,
+            revision,
+            success_criteria=decision.updated_success_criteria or proposed_plan.success_criteria,
+            scenario_ids=selected_scenarios,
+        )
+        self.store.add_event(job_id, "repair", f"检测到任务输入修订，正在评估影响范围：{decision.summary}")
+        if decision.reasoning:
+            self.store.add_event(job_id, "repair", "；".join(decision.reasoning))
+        if decision.invalidate_artifact_kinds:
+            self.store.mark_artifacts_stale(job_id, decision.invalidate_artifact_kinds)
+            self.store.add_event(
+                job_id,
+                "repair",
+                f"以下旧产物已标记为过期：{', '.join(decision.invalidate_artifact_kinds)}。",
+                level="warning",
+            )
+        self.store.apply_repair_decision(
+            job_id,
+            decision,
+            selected_scenarios,
+            replacement_steps=proposed_plan.steps if "plan" in decision.rerun_steps or decision.add_steps or decision.drop_steps else None,
+        )
+        self.store.add_event(
+            job_id,
+            "repair",
+            f"本轮任务修正将重跑：{', '.join(decision.rerun_steps) or '无'}；保留：{', '.join(decision.keep_steps) or '无'}。",
+        )
+        if selected_scenarios:
+            self.run_scenarios(job_id, selected_scenarios, finalize=True)
+        else:
+            self.store.add_event(job_id, "repair", "本轮输入修订无需重跑已有步骤，当前产物保持有效。")
 
     def run_scenarios(self, job_id: str, scenario_ids: list[ScenarioId], finalize: bool = False) -> None:
         job = self.store.get_job(job_id)
@@ -92,7 +151,7 @@ class AgentHarness:
     def _ensure_plan(self, job_id: str):
         job = self.store.get_job(job_id)
         if job.steps:
-            return self.planner.plan(job.request)
+            return self._plan_from_job(job)
 
         plan = self.planner.plan(job.request)
         self.store.set_plan(
@@ -104,6 +163,16 @@ class AgentHarness:
             steps=plan.steps,
         )
         return plan
+
+    @staticmethod
+    def _plan_from_job(job) -> PlanningResult:
+        return PlanningResult(
+            goal=job.goal,
+            success_criteria=list(job.success_criteria),
+            clarification_questions=list(job.clarification_questions),
+            suggested_skills=list(job.suggested_skills),
+            steps=[step.model_copy(deep=True) for step in job.steps],
+        )
 
     def _ensure_brief(self, job_id: str) -> ContentBrief:
         job = self.store.get_job(job_id)
@@ -128,6 +197,7 @@ class AgentHarness:
                 label="汇报文档草稿",
                 path=str(report_path),
                 url=report_url,
+                revision_id=job.current_revision_id,
             ),
         )
         self.store.add_event(
@@ -155,6 +225,7 @@ class AgentHarness:
                 label="HTML Slide 预览",
                 path=str(slide_deck.index_file),
                 url=f"/artifacts/{job_id}/slides/index.html",
+                revision_id=job.current_revision_id,
             ),
         )
 
@@ -169,6 +240,7 @@ class AgentHarness:
                     label="PPT 交付文件",
                     path=str(ppt_path),
                     url=f"/artifacts/{job_id}/delivery/{ppt_path.name}",
+                    revision_id=job.current_revision_id,
                 ),
             )
             slide_notes.append("PPT 文件已导出。")
@@ -217,6 +289,7 @@ class AgentHarness:
                 label="交付清单",
                 path=str(manifest_path),
                 url=f"/artifacts/{job_id}/delivery/manifest.json",
+                revision_id=job.current_revision_id,
             ),
         )
 
@@ -269,6 +342,7 @@ class AgentHarness:
                         label="飞书 Doc 交付",
                         path=doc_id or doc_url,
                         url=doc_url,
+                        revision_id=self.store.get_job(job_id).current_revision_id,
                     ),
                 )
                 self.store.add_event(job_id, "document", f"飞书 Doc 已创建：{doc_url}")
@@ -314,6 +388,7 @@ class AgentHarness:
                         label="飞书 Slides 交付",
                         path=slide_url,
                         url=slide_url,
+                        revision_id=self.store.get_job(job_id).current_revision_id,
                     ),
                 )
             self.store.add_event(job_id, "slides", "飞书 Slides 已创建。")
@@ -352,6 +427,7 @@ class AgentHarness:
                         label=f"飞书 Drive：{file_path.name}",
                         path=str(file_path),
                         url=drive_url or f"/artifacts/{job_id}/delivery/{file_path.name}",
+                        revision_id=self.store.get_job(job_id).current_revision_id,
                     ),
                 )
                 self.store.add_event(job_id, "delivery", f"{file_path.name} 已上传到飞书 Drive。")
